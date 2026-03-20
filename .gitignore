@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -8,14 +8,21 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment variables
 .env
 
-# Gmail OAuth
+# Gmail OAuth — generated locally, never commit
 credentials.json
 token.json
 
-# Data outputs
+# Data — CSVs are large and loaded into Supabase, not needed in repo
+data/customer-data/
 data/output/
 
-# Misc
+# Misc artefacts
 chunks.json
+
+# IDE
+*.code-workspace
+.vscode/
