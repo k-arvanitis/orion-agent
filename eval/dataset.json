@@ -1,0 +1,962 @@
+[
+  {
+    "id": "sql_001",
+    "category": "sql_only",
+    "question": "What is the status of order 416e49799e9260d93c8f636ce6661a55?",
+    "expected_answer": "Order 416e49799e9260d93c8f636ce6661a55 has been delivered. It was purchased on December 11, 2017 and delivered on December 16, 2017, ahead of the estimated delivery date of December 29, 2017.",
+    "expected_tool": "sql_only",
+    "notes": "Tests basic order status lookup with delivery date comparison"
+  },
+  {
+    "id": "sql_002",
+    "category": "sql_only",
+    "question": "When was order 0ec373cccbb9d0a08243467c9d81a0c5 delivered?",
+    "expected_answer": "Order 0ec373cccbb9d0a08243467c9d81a0c5 was delivered on December 21, 2017. The estimated delivery date was January 2, 2018, so it arrived early.",
+    "expected_tool": "sql_only",
+    "notes": "Tests delivery date lookup and early delivery detection"
+  },
+  {
+    "id": "sql_003",
+    "category": "sql_only",
+    "question": "How much did I pay for order 1e8c81805b92ff169971231458670460?",
+    "expected_answer": "Order 1e8c81805b92ff169971231458670460 had a total payment of R$257.94, paid by credit card in 8 installments. It contained a health and beauty product priced at R$110.32 with a freight cost of R$18.65.",
+    "expected_tool": "sql_only",
+    "notes": "Tests payment value and installment lookup"
+  },
+  {
+    "id": "sql_004",
+    "category": "sql_only",
+    "question": "What payment method was used for order 6adcecbe14853c4a59e88f497152d83c?",
+    "expected_answer": "Order 6adcecbe14853c4a59e88f497152d83c was paid using boleto, with a total value of R$45.78 in a single payment. The order contained an auto product and has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests payment type lookup — boleto"
+  },
+  {
+    "id": "sql_005",
+    "category": "sql_only",
+    "question": "What product category was in order 20e871f0177ed08afbde20c48b9ab83e?",
+    "expected_answer": "Order 20e871f0177ed08afbde20c48b9ab83e contained an electronics product priced at R$18.90 with a freight cost of R$13.47. The order has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests product category lookup with English translation"
+  },
+  {
+    "id": "sql_006",
+    "category": "sql_only",
+    "question": "Is order c972a78eeb0dde0aac82eb51b1450c53 delivered yet?",
+    "expected_answer": "No, order c972a78eeb0dde0aac82eb51b1450c53 has not been delivered yet. Its current status is shipped. It was purchased on September 30, 2017 and the estimated delivery date was October 27, 2017.",
+    "expected_tool": "sql_only",
+    "notes": "Tests shipped status — no delivery date available"
+  },
+  {
+    "id": "sql_007",
+    "category": "sql_only",
+    "question": "What happened to order 79fe48b364804e62431c8f465e16f76e?",
+    "expected_answer": "Order 79fe48b364804e62431c8f465e16f76e was canceled. It was placed on November 9, 2017 and paid by credit card for R$82.71.",
+    "expected_tool": "sql_only",
+    "notes": "Tests canceled order status"
+  },
+  {
+    "id": "sql_008",
+    "category": "sql_only",
+    "question": "What is the status of order 2867faaa7a912bbc2bf8d8e40d7a0354?",
+    "expected_answer": "Order 2867faaa7a912bbc2bf8d8e40d7a0354 is marked as unavailable. It was placed on January 22, 2017 and paid by credit card for R$138.35. Unfortunately this order could not be fulfilled.",
+    "expected_tool": "sql_only",
+    "notes": "Tests unavailable order status"
+  },
+  {
+    "id": "sql_009",
+    "category": "sql_only",
+    "question": "How many installments was order b1fc0948d3c1bb44de3612845c3f068f split into?",
+    "expected_answer": "Order b1fc0948d3c1bb44de3612845c3f068f was paid by credit card in 10 installments, with a total value of R$174.08. It contained a furniture living room product.",
+    "expected_tool": "sql_only",
+    "notes": "Tests installment count lookup"
+  },
+  {
+    "id": "sql_010",
+    "category": "sql_only",
+    "question": "Was order f22d1b7a86950424a08a39c66fb46bfa paid by debit card?",
+    "expected_answer": "Yes, order f22d1b7a86950424a08a39c66fb46bfa was paid by debit card with a total value of R$98.56 in a single payment. It contained a watches and gifts product and has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests debit card payment type confirmation"
+  },
+  {
+    "id": "sql_011",
+    "category": "sql_only",
+    "question": "What was the freight cost for order 4d0de3f8be3ad40e85a5d6fe37054d9a?",
+    "expected_answer": "The freight cost for order 4d0de3f8be3ad40e85a5d6fe37054d9a was R$37.94, which is quite high relative to the product price of R$49.00. The order contained garden tools and has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests freight value lookup"
+  },
+  {
+    "id": "sql_012",
+    "category": "sql_only",
+    "question": "Did order bfdfa2b4742c41cf4853fd72cf7c9815 arrive on time?",
+    "expected_answer": "No, order bfdfa2b4742c41cf4853fd72cf7c9815 arrived late. It was delivered on October 13, 2017, which was 4 days after the estimated delivery date of October 9, 2017.",
+    "expected_tool": "sql_only",
+    "notes": "Tests late delivery detection from query 1 data"
+  },
+  {
+    "id": "sql_013",
+    "category": "sql_only",
+    "question": "How much was order e13c7d85f07a4e00c383115a154dcc39 and what was in it?",
+    "expected_answer": "Order e13c7d85f07a4e00c383115a154dcc39 contained fashion bags and accessories with a product price of R$949.00 and freight of R$12.48. The total payment was R$2,207.98 paid by credit card in 10 installments.",
+    "expected_tool": "sql_only",
+    "notes": "Tests high value order lookup"
+  },
+  {
+    "id": "sql_014",
+    "category": "sql_only",
+    "question": "Was order bea1d77e861b4f44276f02d599d25705 paid with a voucher?",
+    "expected_answer": "Yes, order bea1d77e861b4f44276f02d599d25705 was paid using a voucher with a total value of R$96.02 in a single payment. It contained housewares and has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests voucher payment type"
+  },
+  {
+    "id": "sql_015",
+    "category": "sql_only",
+    "question": "How late was order 3323fd4055090e20288b12f59a77e9fb delivered?",
+    "expected_answer": "Order 3323fd4055090e20288b12f59a77e9fb was delivered 15 days late. It was estimated to arrive by February 5, 2018 but was actually delivered on February 20, 2018.",
+    "expected_tool": "sql_only",
+    "notes": "Tests significant late delivery — 15 days"
+  },
+  {
+    "id": "sql_016",
+    "category": "sql_only",
+    "question": "What is the total value of order 8a6b619c3aff55f02ec3cabe6d746ce8?",
+    "expected_answer": "Order 8a6b619c3aff55f02ec3cabe6d746ce8 had a total payment of R$1,053.84, paid by credit card in 10 installments. It contained office furniture priced at R$146.94 with freight of R$28.70.",
+    "expected_tool": "sql_only",
+    "notes": "Tests high value installment order"
+  },
+  {
+    "id": "sql_017",
+    "category": "sql_only",
+    "question": "When did order 4863e15fa53273cc7219c58f5ffda4fb arrive and was it late?",
+    "expected_answer": "Order 4863e15fa53273cc7219c58f5ffda4fb was delivered on March 5, 2018, which was 7 days after the estimated delivery date of February 26, 2018.",
+    "expected_tool": "sql_only",
+    "notes": "Tests 7-day late delivery"
+  },
+  {
+    "id": "sql_018",
+    "category": "sql_only",
+    "question": "What category of product was in order 706296e2ab240216ffef853d1095d04f and how much was paid?",
+    "expected_answer": "Order 706296e2ab240216ffef853d1095d04f contained computers, with a total payment of R$1,237.81 paid by credit card in 8 installments. It has been delivered.",
+    "expected_tool": "sql_only",
+    "notes": "Tests high value computer order"
+  },
+  {
+    "id": "sql_019",
+    "category": "sql_only",
+    "question": "Did order 1db2abc72703311e809fc353b3cc4b65 go through?",
+    "expected_answer": "No, order 1db2abc72703311e809fc353b3cc4b65 was canceled. It was placed on August 2, 2017 and paid by boleto for R$51.68.",
+    "expected_tool": "sql_only",
+    "notes": "Tests canceled order with boleto payment"
+  },
+  {
+    "id": "sql_020",
+    "category": "sql_only",
+    "question": "How many days late was order eadaca4f30575b6c3a4c4efebce9d252?",
+    "expected_answer": "Order eadaca4f30575b6c3a4c4efebce9d252 was delivered 12 days late. The estimated delivery was March 8, 2018 but it arrived on March 20, 2018.",
+    "expected_tool": "sql_only",
+    "notes": "Tests 12-day late delivery"
+  },
+  {
+    "id": "sql_021",
+    "category": "sql_only",
+    "question": "What was the review score for order ec99cf3ef9a84993f1e55aa4fc615c42?",
+    "expected_answer": "Order ec99cf3ef9a84993f1e55aa4fc615c42 received a review score of 1 out of 5. The customer left a comment indicating they only received part of their order — the curtains were delivered but the pair of frames was missing.",
+    "expected_tool": "sql_only",
+    "notes": "Tests review score and comment lookup"
+  },
+  {
+    "id": "sql_022",
+    "category": "sql_only",
+    "question": "Did the customer leave a review for order bcd3587deb2f53804e0d3c39de932ec4?",
+    "expected_answer": "Yes, order bcd3587deb2f53804e0d3c39de932ec4 received a 5 out of 5 review. The customer noted that the order was delivered correctly and arrived well ahead of the deadline.",
+    "expected_tool": "sql_only",
+    "notes": "Tests positive review lookup"
+  },
+  {
+    "id": "sql_023",
+    "category": "sql_only",
+    "question": "What review did order 4baf66d022680c163d31c85a42b6bbd6 get?",
+    "expected_answer": "Order 4baf66d022680c163d31c85a42b6bbd6 received a review score of 2 out of 5. The customer reported the product got stuck and would not unlock, and was asking how to return it just 6 days after purchase.",
+    "expected_tool": "sql_only",
+    "notes": "Tests negative review with defect complaint"
+  },
+  {
+    "id": "sql_024",
+    "category": "sql_only",
+    "question": "What is the status of order 32cf225a72e589313cd8d967203effc6?",
+    "expected_answer": "Order 32cf225a72e589313cd8d967203effc6 is marked as unavailable and was never delivered. The customer left a 1-star review expressing frustration that the seller made excuses to avoid delivery.",
+    "expected_tool": "sql_only",
+    "notes": "Tests unavailable order with negative review"
+  },
+  {
+    "id": "sql_025",
+    "category": "sql_only",
+    "question": "How much freight did I pay on order cab94551cf580883129898c612b8cb83?",
+    "expected_answer": "Order cab94551cf580883129898c612b8cb83 had a freight cost of R$161.82, which is exceptionally high relative to the product price of R$162.00. This was a pet shop order, likely involving heavy or bulky items.",
+    "expected_tool": "sql_only",
+    "notes": "Tests high freight value relative to product price"
+  },
+  {
+    "id": "sql_026",
+    "category": "sql_only",
+    "question": "Was order 8712b255e65bd40b073d43478f7d24d1 delivered early?",
+    "expected_answer": "Yes, the customer who reviewed order 8712b255e65bd40b073d43478f7d24d1 gave it 5 stars and specifically mentioned that it arrived before the scheduled date. The order was delivered on August 22, 2018.",
+    "expected_tool": "sql_only",
+    "notes": "Tests early delivery with positive review"
+  },
+  {
+    "id": "sql_027",
+    "category": "sql_only",
+    "question": "What did order 9eb45b0aa6ff6baf71a20c68414f8089 cost and what happened to it?",
+    "expected_answer": "Order 9eb45b0aa6ff6baf71a20c68414f8089 was valued at R$10.49 paid by credit card, but the order status is unavailable meaning it could not be fulfilled.",
+    "expected_tool": "sql_only",
+    "notes": "Tests low value unavailable order"
+  },
+  {
+    "id": "sql_028",
+    "category": "sql_only",
+    "question": "How many installments was order aca9d1c54db4b2896b2097b04a5d5cd3 paid in?",
+    "expected_answer": "Order aca9d1c54db4b2896b2097b04a5d5cd3 was paid in 10 installments by credit card, with a total value of R$755.57. It contained musical instruments priced at R$690.00.",
+    "expected_tool": "sql_only",
+    "notes": "Tests 10 installment musical instrument order"
+  },
+  {
+    "id": "sql_029",
+    "category": "sql_only",
+    "question": "Was order 00e054d0da011d5016f31011af488f4f late?",
+    "expected_answer": "Yes, order 00e054d0da011d5016f31011af488f4f was significantly late. The estimated delivery was March 28, 2018 but it was not delivered until May 8, 2018 — approximately 41 days late.",
+    "expected_tool": "sql_only",
+    "notes": "Tests extreme late delivery"
+  },
+  {
+    "id": "sql_030",
+    "category": "sql_only",
+    "question": "What was in order 73716792079a3819a7022fdf6500f9fb and did it arrive on time?",
+    "expected_answer": "Order 73716792079a3819a7022fdf6500f9fb contained small appliances priced at R$299.00 with freight of R$15.21, paid by credit card in 10 installments for a total of R$314.21. It was delivered on March 15, 2018, exactly on the estimated delivery date.",
+    "expected_tool": "sql_only",
+    "notes": "Tests on-time delivery with 0 days late"
+  },
+  {
+    "id": "rag_001",
+    "category": "rag_only",
+    "question": "What is the return window for electronics?",
+    "expected_answer": "For electronics, the return window depends on whether the item has been opened. If sealed and unopened, you have 30 days from delivery to return. If the box has been opened, the return window is 7 days from the delivery date, and the item must be in full working condition with all original accessories, cables, manuals, and packaging included.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.1 Electronics",
+    "notes": "Tests core electronics return rule retrieval"
+  },
+  {
+    "id": "rag_002",
+    "category": "rag_only",
+    "question": "Can I return a clothing item I already wore?",
+    "expected_answer": "No, clothing items that have been worn cannot be returned. ShopNova requires clothing returns to be unworn, unwashed, and unaltered, with original tags still attached and free from odours, stains, or signs of use.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.2 Clothing and Footwear",
+    "notes": "Tests clothing return condition rules"
+  },
+  {
+    "id": "rag_003",
+    "category": "rag_only",
+    "question": "Is return shipping free for clothing?",
+    "expected_answer": "Yes, ShopNova offers free return shipping on all clothing and footwear returns. A prepaid return label will be generated automatically once your return request is approved.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.2 Clothing and Footwear",
+    "notes": "Tests free return shipping policy for clothing"
+  },
+  {
+    "id": "rag_004",
+    "category": "rag_only",
+    "question": "Can I return an opened beauty product?",
+    "expected_answer": "No, once opened, beauty and personal care products cannot be returned for hygiene and safety reasons. Returns are only accepted if the product is sealed and unopened. The only exception is if the product caused an adverse reaction, in which case ShopNova will review the case individually and may require a description of the reaction and medical documentation.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.4 Beauty and Personal Care",
+    "notes": "Tests beauty product return restriction"
+  },
+  {
+    "id": "rag_005",
+    "category": "rag_only",
+    "question": "How long do I have to return a defective product?",
+    "expected_answer": "If a product develops a manufacturing defect, you have 90 days from the delivery date to return it, regardless of the product category. This extended window applies specifically to manufacturing defects — faults present at the time of manufacture that are not caused by misuse or accidental damage.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 5.1 Manufacturing Defects",
+    "notes": "Tests defective item extended return window"
+  },
+  {
+    "id": "rag_006",
+    "category": "rag_only",
+    "question": "What items cannot be returned at all?",
+    "expected_answer": "The following items are non-returnable under any circumstances unless a manufacturing defect is present: perishable goods and food items, digital products and downloads once accessed or activated, personalised or custom-made items, hazardous materials such as aerosols and flammable liquids, and underwear or swimwear once the hygiene seal has been broken.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 4",
+    "notes": "Tests non-returnable items policy"
+  },
+  {
+    "id": "rag_007",
+    "category": "rag_only",
+    "question": "How long does a boleto refund take?",
+    "expected_answer": "Boleto refunds cannot be reversed to the original boleto. Instead, the refund is issued as a bank transfer (TED/DOC) to your nominated bank account. You will need to provide your bank name, branch number, account number, account type, and CPF. The transfer is processed within 10 business days of you providing your bank details.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 7.2 Boleto Refunds",
+    "notes": "Tests boleto refund timeline and process"
+  },
+  {
+    "id": "rag_008",
+    "category": "rag_only",
+    "question": "How long do I have to cancel an order?",
+    "expected_answer": "You can cancel an order free of charge within 1 hour of placing it, regardless of the payment method. After this window, cancellation is not guaranteed — ShopNova will attempt to contact the seller to halt the order, but if it has already been prepared for dispatch, it may not be possible. Once dispatched, cancellation is no longer an option and you would need to wait for delivery and then submit a return request.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 6 Order Cancellation",
+    "notes": "Tests cancellation window policy"
+  },
+  {
+    "id": "rag_009",
+    "category": "rag_only",
+    "question": "What is the warranty on electronics?",
+    "expected_answer": "Electronics are covered by ShopNova's platform warranty for 12 months from the confirmed delivery date. Coverage includes manufacturing defects, hardware failures, and battery defects where capacity drops below 80% of rated capacity under normal usage. Coverage does not include screen cracks, liquid damage, physical damage from drops, or unauthorised modifications.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 2.1 Electronics",
+    "notes": "Tests electronics warranty period and coverage"
+  },
+  {
+    "id": "rag_010",
+    "category": "rag_only",
+    "question": "Does furniture have a warranty?",
+    "expected_answer": "Yes, furniture has the longest warranty period on ShopNova — 24 months from the confirmed delivery date. Coverage includes structural defects, frame failures, defective mechanisms such as recliners and fold-out beds, and fabric defects present at the time of delivery. Coverage does not include normal wear and tear, fading from sunlight, liquid damage, or damage caused by incorrect assembly.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 2.3 Furniture",
+    "notes": "Tests furniture warranty — longest period"
+  },
+  {
+    "id": "rag_011",
+    "category": "rag_only",
+    "question": "What voids a warranty claim?",
+    "expected_answer": "A warranty claim will be voided by any of the following: physical damage caused by the customer such as cracks or liquid exposure, damage from using the product contrary to its intended purpose, any attempt by the customer or an unauthorised third party to open or repair the product, incorrect installation or use with incompatible accessories, and normal wear and tear consistent with the product's age.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 3",
+    "notes": "Tests warranty void conditions"
+  },
+  {
+    "id": "rag_012",
+    "category": "rag_only",
+    "question": "How long do I have to report a damaged on arrival item?",
+    "expected_answer": "You must report a damaged on arrival item within 48 hours of the confirmed delivery date. Reports submitted after this window will not be processed as a DOA claim and will instead be assessed under the standard warranty policy. When reporting, you must provide at least three photographs: the outer packaging, inner packaging, and the damaged item itself.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 4.2 Reporting Window",
+    "notes": "Tests DOA 48-hour reporting window"
+  },
+  {
+    "id": "rag_013",
+    "category": "rag_only",
+    "question": "How many installments can I split a credit card payment into?",
+    "expected_answer": "The number of installments available depends on your order total. Orders between R$50 and R$99 can be split into up to 2 installments. Orders between R$100 and R$199 up to 3 installments. Orders between R$200 and R$499 up to 6 installments. Orders between R$500 and R$999 up to 9 installments. Orders of R$1,000 or more can be split into up to 12 installments.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 3.1 Availability",
+    "notes": "Tests installment tier table retrieval"
+  },
+  {
+    "id": "rag_014",
+    "category": "rag_only",
+    "question": "What happens if I don't pay my boleto in time?",
+    "expected_answer": "If a boleto is not paid within 3 business days of being generated, it expires and the order is automatically cancelled. No charge is made. You may place the order again, which will generate a new boleto. ShopNova cannot reactivate an expired boleto — a new order must be placed.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 4.3 Expired Boleto",
+    "notes": "Tests boleto expiry policy"
+  },
+  {
+    "id": "rag_015",
+    "category": "rag_only",
+    "question": "How long does delivery take to São Paulo?",
+    "expected_answer": "For standard shipping from a seller based in São Paulo, deliveries within São Paulo state typically take 1 to 3 business days. São Paulo is the best-served region due to the high concentration of fulfilment centres.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 3.1 Southeast Region",
+    "notes": "Tests regional delivery estimate — SP"
+  },
+  {
+    "id": "rag_016",
+    "category": "rag_only",
+    "question": "How long does delivery take to Amazonas?",
+    "expected_answer": "Deliveries to Amazonas (AM) typically take 7 to 12 business days for standard shipping. Deliveries to remote municipalities in the North region, particularly those accessible only by river, may experience additional delays beyond this estimate.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 3.5 North Region",
+    "notes": "Tests remote region delivery estimate"
+  },
+  {
+    "id": "rag_017",
+    "category": "rag_only",
+    "question": "What is the free shipping threshold?",
+    "expected_answer": "Orders with a product total of R$75 or more, after discounts and before freight, qualify for free standard shipping to any address in Brazil. Free shipping is applied automatically at checkout. Note that some categories are excluded from free shipping, including furniture, large home appliances, large sports equipment, and hazardous goods.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 4.2 Free Shipping Threshold",
+    "notes": "Tests free shipping threshold and exclusions"
+  },
+  {
+    "id": "rag_018",
+    "category": "rag_only",
+    "question": "What compensation do I get if my delivery is late?",
+    "expected_answer": "If your order is delivered 5 or more business days after the estimated delivery date, and the delay is caused by the carrier or ShopNova (not by you), you are entitled to a 10% discount voucher on your next ShopNova purchase. The voucher is valid for 90 days from the date of issue. To claim it, go to My Orders, select the delayed order, and click Report Late Delivery.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 6.2 Late Delivery Compensation",
+    "notes": "Tests late delivery compensation policy"
+  },
+  {
+    "id": "rag_019",
+    "category": "rag_only",
+    "question": "When can I open a lost package claim?",
+    "expected_answer": "You can open a lost package claim if your order has not been delivered within 15 calendar days past the estimated delivery date and tracking has not updated in 7 or more days. Do not open a claim before this threshold as packages in transit sometimes go without tracking updates. Once submitted, ShopNova will open an investigation with the carrier within 1 business day.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 7.1 When to Open a Lost Package Claim",
+    "notes": "Tests lost package claim eligibility"
+  },
+  {
+    "id": "rag_020",
+    "category": "rag_only",
+    "question": "Can I return assembled furniture?",
+    "expected_answer": "No, once furniture has been assembled it cannot be returned unless it is defective. ShopNova requires furniture to be unassembled and in its original packaging for a return to be accepted. If your furniture is defective after assembly, you should file a warranty claim rather than a standard return.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.3 Furniture and Home Décor",
+    "notes": "Tests assembled furniture non-returnable rule"
+  },
+  {
+    "id": "rag_021",
+    "category": "rag_only",
+    "question": "How do I initiate a return?",
+    "expected_answer": "To initiate a return: log in to your ShopNova account, go to My Orders and locate the relevant order, click Return Item next to the product, select the reason for return, choose your preferred resolution (refund, store credit, or exchange), and submit the request. You will receive a confirmation email within 1 hour.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 6.1 Initiating a Return",
+    "notes": "Tests return initiation process"
+  },
+  {
+    "id": "rag_022",
+    "category": "rag_only",
+    "question": "How long does a credit card refund take?",
+    "expected_answer": "Credit card refunds are processed by ShopNova within 5 to 7 business days of the return being approved. The time for the credit to appear on your statement depends on your card issuer and may take an additional 1 to 3 business days. Total time from refund approval to the credit appearing is typically 6 to 10 business days.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 7.1 Credit Card Refunds",
+    "notes": "Tests credit card refund timeline"
+  },
+  {
+    "id": "rag_023",
+    "category": "rag_only",
+    "question": "What is the warranty on home appliances?",
+    "expected_answer": "Home appliances are covered by ShopNova's platform warranty for 6 months from the confirmed delivery date. Coverage includes manufacturing defects, motor failures, and electrical faults not caused by improper installation or power surges. Coverage does not include damage from improper installation, incorrect voltage, pest infestation, or failure to follow maintenance instructions.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 2.2 Home Appliances",
+    "notes": "Tests appliance warranty period"
+  },
+  {
+    "id": "rag_024",
+    "category": "rag_only",
+    "question": "Can I use more than one promo code?",
+    "expected_answer": "No, only one promo code can be applied per order. However, you can use up to 3 ShopNova vouchers (store credit) on the same order alongside a promo code. Promo codes cannot be combined with other promo codes.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 8.1 and 8.2",
+    "notes": "Tests promo code stacking rules"
+  },
+  {
+    "id": "rag_025",
+    "category": "rag_only",
+    "question": "What happens to my voucher if I return an item?",
+    "expected_answer": "If you used a promo code to purchase an item that you later return, the discount value is not refunded — you receive a refund for the amount actually paid, not the original price. If you used a ShopNova voucher (store credit), the voucher amount used is re-issued as a new voucher of equal value.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 8.4",
+    "notes": "Tests voucher refund on return"
+  },
+  {
+    "id": "rag_026",
+    "category": "rag_only",
+    "question": "Does express shipping have a minimum order value?",
+    "expected_answer": "Yes, express shipping requires an order total of R$50 or more after discounts. Additionally, the order must be placed before 12:00 noon Brasília time on a business day, the delivery address must be in a capital city or major metropolitan area, and the product must weigh under 10kg. Express shipping is not available for furniture, large appliances, or hazardous goods.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 2.2 Express Shipping",
+    "notes": "Tests express shipping eligibility conditions"
+  },
+  {
+    "id": "rag_027",
+    "category": "rag_only",
+    "question": "What is the warranty period for clothing?",
+    "expected_answer": "Clothing and footwear are covered by a 90-day warranty from the confirmed delivery date. Coverage includes manufacturing defects such as defective stitching that causes seams to separate under normal use, faulty zips or buttons, and fabric flaws visible within the first wash. Fading, shrinkage from incorrect washing, and normal wear are not covered.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 2.4 Clothing and Footwear",
+    "notes": "Tests clothing warranty period"
+  },
+  {
+    "id": "rag_028",
+    "category": "rag_only",
+    "question": "What delivery options exist for large furniture?",
+    "expected_answer": "Large furniture is delivered to the ground floor or building entrance by default. For an additional fee, ShopNova offers room-of-choice delivery in select cities, where the team brings the item to a specified room on any floor. Scheduled delivery slots are available Tuesday through Saturday. Customers must ensure someone is present during the delivery window and carriers will call 30 to 60 minutes before arrival.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 9",
+    "notes": "Tests large item delivery rules"
+  },
+  {
+    "id": "rag_029",
+    "category": "rag_only",
+    "question": "Can I return underwear?",
+    "expected_answer": "No, underwear and swimwear are non-returnable once the hygiene seal or original packaging has been opened, for health and safety reasons. This applies regardless of the general 30-day return window.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 4.5",
+    "notes": "Tests hygiene item non-returnable rule"
+  },
+  {
+    "id": "rag_030",
+    "category": "rag_only",
+    "question": "What happens if a seller cancels my order?",
+    "expected_answer": "If a seller cancels your order, you will be notified by email and will receive an automatic full refund within 3 business days. You are also entitled to a R$15 inconvenience credit applied to your ShopNova account as compensation for the cancellation.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 6.4 Seller-Initiated Cancellations",
+    "notes": "Tests seller cancellation compensation"
+  },
+  {
+    "id": "both_001",
+    "category": "both_tools",
+    "question": "My order 416e49799e9260d93c8f636ce6661a55 was a health and beauty product. Can I still return it?",
+    "expected_answer": "Order 416e49799e9260d93c8f636ce6661a55 was delivered on December 16, 2017. Since this is a health and beauty product, it can only be returned if it is still sealed and unopened. If the product has been opened, it is no longer eligible for return under ShopNova's beauty and personal care policy. If the product caused an adverse reaction, please contact support with a description and any available medical documentation for an individual review.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date. RAG: beauty return rules. Combined: eligibility assessment"
+  },
+  {
+    "id": "both_002",
+    "category": "both_tools",
+    "question": "Order 0ec373cccbb9d0a08243467c9d81a0c5 was furniture. Can I return it?",
+    "expected_answer": "Order 0ec373cccbb9d0a08243467c9d81a0c5 was delivered on December 21, 2017 and contained furniture. The standard 30-day return window would have closed around January 20, 2018. Since we are well beyond that date, this order is no longer eligible for a standard return. However, if the item developed a manufacturing defect, the 24-month furniture warranty would still apply from the delivery date of December 21, 2017.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date. RAG: furniture return rules. Combined: window expired"
+  },
+  {
+    "id": "both_003",
+    "category": "both_tools",
+    "question": "I received order 20e871f0177ed08afbde20c48b9ab83e which was an electronics item. I opened the box. Can I return it?",
+    "expected_answer": "Order 20e871f0177ed08afbde20c48b9ab83e was delivered on July 3, 2018 and contained an electronics product. Since you have opened the box, the 7-day return window for opened electronics applies — this window closed around July 10, 2018. Unfortunately the order is no longer eligible for a return based on change of mind. If the product is defective, you have 90 days from the delivery date to file a warranty claim.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + electronics category. RAG: opened electronics 7-day rule"
+  },
+  {
+    "id": "both_004",
+    "category": "both_tools",
+    "question": "Order bfdfa2b4742c41cf4853fd72cf7c9815 arrived late. Am I entitled to any compensation?",
+    "expected_answer": "Order bfdfa2b4742c41cf4853fd72cf7c9815 was estimated for delivery on October 9, 2017 but arrived on October 13, 2017 — 4 days late. Unfortunately ShopNova's late delivery compensation policy requires a delay of 5 or more business days to qualify for the 10% discount voucher. Since your order was only 4 days late, it does not meet the compensation threshold.",
+    "expected_tool": "both",
+    "notes": "SQL: days late = 4. RAG: compensation threshold = 5 days. Combined: not eligible"
+  },
+  {
+    "id": "both_005",
+    "category": "both_tools",
+    "question": "Order c3665b33e58190870d82a79cc835cc30 was 5 days late. Do I get compensation?",
+    "expected_answer": "Yes, order c3665b33e58190870d82a79cc835cc30 was delivered on May 30, 2017, which was 5 days after the estimated delivery date of May 25, 2017. Since the delay is exactly 5 business days, you qualify for ShopNova's late delivery compensation — a 10% discount voucher on your next purchase, valid for 90 days. Go to My Orders, select this order, and click Report Late Delivery to claim it.",
+    "expected_tool": "both",
+    "notes": "SQL: days late = 5. RAG: compensation threshold = 5 days. Combined: eligible"
+  },
+  {
+    "id": "both_006",
+    "category": "both_tools",
+    "question": "I want to return order 6adcecbe14853c4a59e88f497152d83c which was an auto product paid by boleto. How will I get my refund?",
+    "expected_answer": "Order 6adcecbe14853c4a59e88f497152d83c was an auto product delivered on July 4, 2018, paid by boleto for R$45.78. Auto products follow the standard 30-day return window. Regarding your refund: since you paid by boleto, the refund cannot be reversed to the original boleto. It will be issued as a bank transfer (TED/DOC) to your nominated bank account within 10 business days of you providing your bank details.",
+    "expected_tool": "both",
+    "notes": "SQL: payment type boleto + delivery date. RAG: boleto refund process"
+  },
+  {
+    "id": "both_007",
+    "category": "both_tools",
+    "question": "My electronics order 3454a64b94a71420a518187d8f96b47d arrived on April 20, 2018. I opened it and it is defective. What can I do?",
+    "expected_answer": "Order 3454a64b94a71420a518187d8f96b47d was delivered on April 20, 2018 and contained a health and beauty product, paid by credit card. For defective items, ShopNova provides a 90-day return window from the delivery date regardless of category, which means you have until approximately July 19, 2018 to file a defect claim. Go to My Orders, click Report a Problem, select Defective Item, and upload at least two photographs showing the defect.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date. RAG: defective item 90-day window"
+  },
+  {
+    "id": "both_008",
+    "category": "both_tools",
+    "question": "Order 4863e15fa53273cc7219c58f5ffda4fb was 7 days late. Can I get a voucher?",
+    "expected_answer": "Yes, order 4863e15fa53273cc7219c58f5ffda4fb was delivered on March 5, 2018, which was 7 days after the estimated delivery date of February 26, 2018. Since the delay exceeds 5 business days and was caused by the carrier, you qualify for a 10% discount voucher on your next ShopNova purchase, valid for 90 days. Go to My Orders and click Report Late Delivery to claim your voucher.",
+    "expected_tool": "both",
+    "notes": "SQL: 7 days late. RAG: 5+ day threshold qualifies. Combined: eligible"
+  },
+  {
+    "id": "both_009",
+    "category": "both_tools",
+    "question": "I want to cancel order 9f0e70e8d046d9e0626bbdaf1aff88c4 which I placed on January 24, 2018. Is it too late?",
+    "expected_answer": "Order 9f0e70e8d046d9e0626bbdaf1aff88c4 was placed on January 24, 2018 but its current status is canceled — it appears this order was already canceled. If you are asking about a different order, please note that ShopNova's free cancellation window is only 1 hour from the time of placing the order.",
+    "expected_tool": "both",
+    "notes": "SQL: order already canceled. RAG: cancellation window policy"
+  },
+  {
+    "id": "both_010",
+    "category": "both_tools",
+    "question": "Order 8599e76adf580692cddfebfcea8042f0 was a watches and gifts item delivered on April 4, 2018 but estimated for March 22, 2018. Am I owed compensation?",
+    "expected_answer": "Order 8599e76adf580692cddfebfcea8042f0 was delivered on April 4, 2018, which was 13 days after the estimated delivery date of March 22, 2018. Since the delay is well over 5 business days, you qualify for ShopNova's late delivery compensation — a 10% discount voucher on your next purchase, valid for 90 days. Go to My Orders, select this order, and click Report Late Delivery.",
+    "expected_tool": "both",
+    "notes": "SQL: 13 days late. RAG: compensation policy. Combined: eligible"
+  },
+  {
+    "id": "both_011",
+    "category": "both_tools",
+    "question": "I bought a musical instrument in order aca9d1c54db4b2896b2097b04a5d5cd3. It has a fault. Is it still under warranty?",
+    "expected_answer": "Order aca9d1c54db4b2896b2097b04a5d5cd3 was delivered on August 4, 2017 and contained musical instruments. Musical instruments fall under ShopNova's sports and leisure equipment category for warranty purposes, which provides a 6-month platform warranty. That warranty would have expired around February 4, 2018. However, if you are still within the manufacturer's warranty period, ShopNova can coordinate with the manufacturer on your behalf.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: warranty period by category"
+  },
+  {
+    "id": "both_012",
+    "category": "both_tools",
+    "question": "Order 00e054d0da011d5016f31011af488f4f arrived 41 days late. What am I entitled to?",
+    "expected_answer": "Order 00e054d0da011d5016f31011af488f4f was estimated for delivery on March 28, 2018 but was not delivered until May 8, 2018 — a delay of approximately 41 days. Since the delay far exceeds the 5 business day threshold, you are entitled to a 10% discount voucher on your next ShopNova purchase, valid for 90 days. Go to My Orders, select this order, and click Report Late Delivery to claim your compensation.",
+    "expected_tool": "both",
+    "notes": "SQL: extreme late delivery 41 days. RAG: compensation policy"
+  },
+  {
+    "id": "both_013",
+    "category": "both_tools",
+    "question": "I paid for order 1e8c81805b92ff169971231458670460 by credit card in 8 installments and I want to return it. How will I get my refund?",
+    "expected_answer": "Order 1e8c81805b92ff169971231458670460 was a health and beauty product delivered on May 16, 2018, paid by credit card in 8 installments for R$257.94. Since it is a health and beauty product, it can only be returned if still sealed and unopened. If eligible, the refund for an installment purchase is processed as a single lump sum to your credit card — not as a reversal of individual installments. Your card issuer will distribute this against outstanding installments, which may take up to 2 billing cycles.",
+    "expected_tool": "both",
+    "notes": "SQL: payment type + installments. RAG: beauty return rules + installment refund"
+  },
+  {
+    "id": "both_014",
+    "category": "both_tools",
+    "question": "Order f22d1b7a86950424a08a39c66fb46bfa was paid by debit card. If I return it how long will my refund take?",
+    "expected_answer": "Order f22d1b7a86950424a08a39c66fb46bfa was a watches and gifts item delivered on August 31, 2018, paid by debit card for R$98.56. Debit card refunds follow the same process as credit card refunds — the amount is returned to your original debit card within 5 to 7 business days of the return being approved. Processing times depend on your bank.",
+    "expected_tool": "both",
+    "notes": "SQL: payment type debit + delivery date. RAG: debit card refund timeline"
+  },
+  {
+    "id": "both_015",
+    "category": "both_tools",
+    "question": "My pet shop order cab94551cf580883129898c612b8cb83 arrived. It seems damaged. I received it 2 days ago. What should I do?",
+    "expected_answer": "Order cab94551cf580883129898c612b8cb83 was a pet shop order delivered on December 9, 2017, paid by credit card for R$323.82. Since you received it 2 days ago and it appears damaged, you are within the 48-hour damaged on arrival reporting window. You should immediately go to My Orders, click Report a Problem, select Item Arrived Damaged, and upload at least three photographs: the outer packaging, inner packaging, and the damaged item. ShopNova will review within 4 business hours and arrange a replacement or full refund.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date. RAG: DOA 48-hour window. Combined: still eligible"
+  },
+  {
+    "id": "both_016",
+    "category": "both_tools",
+    "question": "Order 68536e12a3cd7f62b4a5946d541ff083 was paid by boleto and arrived 21 days late. Am I entitled to anything?",
+    "expected_answer": "Order 68536e12a3cd7f62b4a5946d541ff083 was delivered on August 14, 2017, which was 21 days after the estimated delivery date of July 24, 2017. Since the delay exceeds 5 business days, you are entitled to a 10% discount voucher on your next ShopNova purchase, valid for 90 days. Go to My Orders and click Report Late Delivery to claim it. Note that your original payment was by boleto — any refund if you choose to return the item would be issued via bank transfer rather than back to the boleto.",
+    "expected_tool": "both",
+    "notes": "SQL: 21 days late + boleto payment. RAG: late delivery compensation"
+  },
+  {
+    "id": "both_017",
+    "category": "both_tools",
+    "question": "I want to return order 52b1ffde0cd06a4b61dc1229bcf87827 which was a bed bath table item. How do I ship it back?",
+    "expected_answer": "Order 52b1ffde0cd06a4b61dc1229bcf87827 was a bed and bath table item delivered on July 27, 2018. Bed and bath items follow the standard 30-day return window and must be unused and in original packaging. For return shipping, bed and bath table items do not qualify for free return shipping — that benefit applies only to clothing and footwear. You can drop the item off at an authorised ShopNova return point or schedule a pickup through the platform.",
+    "expected_tool": "both",
+    "notes": "SQL: category + delivery date. RAG: return shipping rules by category"
+  },
+  {
+    "id": "both_018",
+    "category": "both_tools",
+    "question": "Order e02d61b42452cc6737650331d8bc8ad7 was 8 days late. Can I also return the item at the same time?",
+    "expected_answer": "Order e02d61b42452cc6737650331d8bc8ad7 was delivered on December 26, 2017, which was 8 days after the estimated delivery date of December 18, 2017. Yes, you qualify for the 10% late delivery voucher — go to My Orders and click Report Late Delivery. Regarding a return: the 30-day standard return window from delivery would have closed around January 25, 2018, so whether you can still return depends on the current date and product category. If the item is defective, you have 90 days from delivery.",
+    "expected_tool": "both",
+    "notes": "SQL: late delivery + delivery date. RAG: compensation + return window"
+  },
+  {
+    "id": "both_019",
+    "category": "both_tools",
+    "question": "I paid for order 8a6b619c3aff55f02ec3cabe6d746ce8 by credit card in 10 installments. I want to cancel it. Is that possible?",
+    "expected_answer": "Order 8a6b619c3aff55f02ec3cabe6d746ce8 was placed on May 25, 2018 and has been delivered on June 17, 2018, so cancellation is no longer possible — the order has already been fulfilled. Since it has been delivered, you would need to follow the return process instead. The order contained office furniture at R$146.94. Note that assembled furniture cannot be returned, so if the furniture has been assembled, a return would only be accepted if there is a manufacturing defect.",
+    "expected_tool": "both",
+    "notes": "SQL: order already delivered. RAG: cancellation not possible post-dispatch + furniture return rules"
+  },
+  {
+    "id": "both_020",
+    "category": "both_tools",
+    "question": "Order 3323fd4055090e20288b12f59a77e9fb was 15 days late. What can I claim?",
+    "expected_answer": "Order 3323fd4055090e20288b12f59a77e9fb was delivered on February 20, 2018, which was 15 days after the estimated delivery date of February 5, 2018. Since the delay exceeds 5 business days, you are entitled to a 10% discount voucher on your next ShopNova purchase, valid for 90 days from the date of issue. Go to My Orders, select the order, and click Report Late Delivery to claim your voucher.",
+    "expected_tool": "both",
+    "notes": "SQL: 15 days late. RAG: compensation eligibility confirmed"
+  },
+  {
+    "id": "edge_001",
+    "category": "edge_case",
+    "question": "What is the status of order 000000000000000000000000000000000?",
+    "expected_answer": "I was unable to find any order with the ID 000000000000000000000000000000000 in our system. Please double-check the order ID in your confirmation email and try again. If you continue to have trouble, I can escalate this to our support team.",
+    "expected_tool": "sql_only",
+    "notes": "Tests SQL returning no rows — agent must not hallucinate"
+  },
+  {
+    "id": "edge_002",
+    "category": "edge_case",
+    "question": "Can I return my digital download?",
+    "expected_answer": "No, digital products and downloads that have been accessed, downloaded, or activated cannot be returned or refunded under any circumstances. Before purchasing digital products, ShopNova recommends carefully reviewing product descriptions and system requirements. This is a firm policy with no exceptions.",
+    "expected_tool": "rag_only",
+    "notes": "Tests non-returnable digital goods — no SQL needed"
+  },
+  {
+    "id": "edge_003",
+    "category": "edge_case",
+    "question": "I want to return my perishable food order.",
+    "expected_answer": "Perishable goods and food items are non-returnable under ShopNova's policy. However, if your food item arrived spoiled or damaged, you must report this within 24 hours of delivery with photographic evidence to receive a full refund. If you received a spoiled item, please go to My Orders and report it immediately.",
+    "expected_tool": "rag_only",
+    "notes": "Tests perishable non-returnable edge case with exception"
+  },
+  {
+    "id": "edge_004",
+    "category": "edge_case",
+    "question": "I never paid my boleto. Can I reactivate it?",
+    "expected_answer": "No, expired boletos cannot be reactivated. If your boleto expired unpaid, the order was automatically cancelled and no charge was made. To purchase the item again, you would need to place a new order, which will generate a new boleto with a fresh 3-business-day payment window.",
+    "expected_tool": "rag_only",
+    "notes": "Tests expired boleto edge case"
+  },
+  {
+    "id": "edge_005",
+    "category": "edge_case",
+    "question": "Order 32cf225a72e589313cd8d967203effc6 is unavailable and never arrived. What are my options?",
+    "expected_answer": "Order 32cf225a72e589313cd8d967203effc6 has a status of unavailable, meaning it could not be fulfilled and was never delivered. You are entitled to a full refund for this order. Additionally, the customer review for this order suggests there were significant issues with the seller — ShopNova takes seller non-compliance seriously. Please contact support to initiate your refund if it has not already been processed.",
+    "expected_tool": "both",
+    "notes": "SQL: unavailable status + review. RAG: refund rights for unfulfilled orders"
+  },
+  {
+    "id": "edge_006",
+    "category": "edge_case",
+    "question": "I returned an item I bought with a voucher. Will I get cash back?",
+    "expected_answer": "No, ShopNova vouchers cannot be converted back to cash. If you return an item purchased with a ShopNova voucher, the refund will be re-issued as a new voucher of equal value. If you paid with a combination of voucher and card, the voucher portion is refunded as a new voucher and the card portion is refunded to your original card.",
+    "expected_tool": "rag_only",
+    "notes": "Tests voucher refund — no cash conversion policy"
+  },
+  {
+    "id": "escalate_001",
+    "category": "escalation",
+    "question": "I have been waiting 3 months for my order and nobody is responding to me. I am furious and I want to speak to a real person right now.",
+    "expected_answer": "I completely understand your frustration, and I sincerely apologise for this experience. A 3-month wait is completely unacceptable and you deserve a proper resolution. I am escalating this to our human support team right now. Could you please provide me with your order ID and email address so I can create a priority support ticket with all the details of your case? A human agent will contact you directly.",
+    "expected_tool": "escalate",
+    "notes": "Tests escalation trigger — high frustration + explicit human request"
+  },
+  {
+    "id": "escalate_002",
+    "category": "escalation",
+    "question": "I want to speak to a manager.",
+    "expected_answer": "Of course, I will escalate this to a human support agent who can assist you further. Could you please share your order ID and email address so I can create a support ticket with the full context of your query? Someone from our team will reach out to you directly.",
+    "expected_tool": "escalate",
+    "notes": "Tests explicit human escalation request"
+  },
+  {
+    "id": "escalate_003",
+    "category": "escalation",
+    "question": "Order 6c6f13dc40d95be45c76aad771245a15 — I already asked for a refund multiple times and nothing happened. I am done with this.",
+    "expected_answer": "I am very sorry to hear this. Looking at order 6c6f13dc40d95be45c76aad771245a15, I can see it has been delivered but the customer review indicates repeated unresolved contact attempts. This is not acceptable and I am escalating this immediately to our Trust & Safety team. Please provide your email address so I can create a priority case for you with the full order history attached.",
+    "expected_tool": "escalate",
+    "notes": "SQL: order + review data. Escalation: repeated unresolved complaint"
+  },
+  {
+    "id": "escalate_004",
+    "category": "escalation",
+    "question": "Your agent cannot help me, I have tried everything. Please just connect me with someone.",
+    "expected_answer": "Absolutely, I will connect you with a human support agent right away. To create your support ticket, could you please share your email address and the order ID you need help with? Our team will reach out to you as soon as possible.",
+    "expected_tool": "escalate",
+    "notes": "Tests escalation when agent explicitly cannot resolve"
+  },
+  {
+    "id": "both_021",
+    "category": "both_tools",
+    "question": "I bought computers accessories in order 7aa4279cc25c67bbcf033b0ffa8e5587. It stopped working. Is it under warranty?",
+    "expected_answer": "Order 7aa4279cc25c67bbcf033b0ffa8e5587 was delivered on August 27, 2018 and contained computer accessories. Computer accessories fall under the electronics warranty — 12 months from the delivery date, which means the warranty runs until approximately August 27, 2019. If you are within this window, you can file a warranty claim by going to My Orders, selecting the order, clicking Warranty Claim, and providing a description and photographs of the fault.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: electronics 12-month warranty"
+  },
+  {
+    "id": "both_022",
+    "category": "both_tools",
+    "question": "Order 177777137ce0af9e9cd2cff572728cca was a perfumery item paid in 8 installments. I want to return it. How does the refund work?",
+    "expected_answer": "Order 177777137ce0af9e9cd2cff572728cca was a perfumery item delivered on February 28, 2018, paid by credit card in 8 installments for R$261.46. Perfumery falls under beauty and personal care, meaning it can only be returned if still sealed and unopened. If eligible, since this was an installment purchase, the refund is processed as a single lump sum credit to your card — not as individual installment reversals. Your card issuer distributes this against outstanding installments, which may take up to 2 billing cycles.",
+    "expected_tool": "both",
+    "notes": "SQL: category + payment installments. RAG: beauty return + installment refund"
+  },
+  {
+    "id": "both_023",
+    "category": "both_tools",
+    "question": "I ordered garden tools in order dcb4a1d21593a108db61f12a4b3d61db and paid R$224.84 in 8 installments. It arrived broken. What do I do?",
+    "expected_answer": "Order dcb4a1d21593a108db61f12a4b3d61db was delivered on June 25, 2018 and contained garden tools, paid by credit card in 8 installments for R$224.84. If the item arrived broken, this is a damaged on arrival (DOA) situation. You must report it within 48 hours of delivery. Go to My Orders, click Report a Problem, select Item Arrived Damaged, and upload at least three photographs. If you are past the 48-hour window, you can still file a defective item claim within 90 days of delivery.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: DOA policy + defective fallback"
+  },
+  {
+    "id": "both_024",
+    "category": "both_tools",
+    "question": "Order 45193dbb3e96a6b68bcd317c6f840fb5 was a bed bath table item paid in 10 installments. It arrived October 7, 2017. Can I still return it?",
+    "expected_answer": "Order 45193dbb3e96a6b68bcd317c6f840fb5 was delivered on October 7, 2017 and contained bed and bath table items. The standard 30-day return window would have closed around November 6, 2017. The order is well outside the return window for a change-of-mind return. However, if the item developed a manufacturing defect, it may still be covered under the platform warranty depending on the specific product type.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: 30-day window expired"
+  },
+  {
+    "id": "both_025",
+    "category": "both_tools",
+    "question": "My order 59fba17dea01f4ca170645397ca73e8b was musical instruments delivered June 5, 2018. I paid R$365.71 in 5 installments. Can I return it?",
+    "expected_answer": "Order 59fba17dea01f4ca170645397ca73e8b was delivered on June 5, 2018 and contained musical instruments, paid by credit card in 5 installments for R$365.71. Musical instruments follow the standard 30-day return window, which would have closed around July 5, 2018. The item needs to be in original unused condition with all packaging intact. If the item is defective, a 90-day defect return window applies from the delivery date.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + installments + category. RAG: standard return window"
+  },
+  {
+    "id": "sql_031",
+    "category": "sql_only",
+    "question": "What was the review score for order dbc1c19f8bd4df6a9271d408ce48c776?",
+    "expected_answer": "Order dbc1c19f8bd4df6a9271d408ce48c776 received a review score of 3 out of 5. The customer noted the product was attractive but the fabric quality was not very good and part of the stitching came apart, though overall they considered it acceptable for the price.",
+    "expected_tool": "sql_only",
+    "notes": "Tests 3-star mixed review lookup"
+  },
+  {
+    "id": "sql_032",
+    "category": "sql_only",
+    "question": "Did order 3cd7a167d6f4300d15a7c8816c1b29d5 go through?",
+    "expected_answer": "No, order 3cd7a167d6f4300d15a7c8816c1b29d5 was canceled. It was placed on September 15, 2017 and paid by credit card for R$99.34. The order was not fulfilled.",
+    "expected_tool": "sql_only",
+    "notes": "Tests canceled order lookup"
+  },
+  {
+    "id": "sql_033",
+    "category": "sql_only",
+    "question": "How much was the freight on order 3ad157ca74c35f0e167f7c21cb6dd3af compared to the product price?",
+    "expected_answer": "Order 3ad157ca74c35f0e167f7c21cb6dd3af contained a pet shop product priced at R$41.00, but the freight cost was R$47.34 — meaning the freight cost was actually higher than the product itself. The total payment was R$88.34, paid by credit card in 2 installments.",
+    "expected_tool": "sql_only",
+    "notes": "Tests freight vs product price comparison"
+  },
+  {
+    "id": "sql_034",
+    "category": "sql_only",
+    "question": "Was order 909965523288fe78ac1a381314d6811c delivered before the estimated date?",
+    "expected_answer": "Order 909965523288fe78ac1a381314d6811c was delivered on May 2, 2018, one day before the estimated delivery date of May 3, 2018. So yes, it arrived just slightly ahead of schedule.",
+    "expected_tool": "sql_only",
+    "notes": "Tests close-call on-time delivery"
+  },
+  {
+    "id": "sql_035",
+    "category": "sql_only",
+    "question": "What was the total value of order e13c7d85f07a4e00c383115a154dcc39 and what category was it?",
+    "expected_answer": "Order e13c7d85f07a4e00c383115a154dcc39 was a fashion bags and accessories order with a product price of R$949.00 and freight of R$12.48. It was paid by credit card in 10 installments for a total of R$2,207.98 — one of the highest value orders in the dataset.",
+    "expected_tool": "sql_only",
+    "notes": "Tests high value fashion order"
+  },
+  {
+    "id": "rag_031",
+    "category": "rag_only",
+    "question": "What is the warranty on sports equipment?",
+    "expected_answer": "Sports and leisure equipment is covered by ShopNova's platform warranty for 6 months from the confirmed delivery date for mechanical equipment such as bicycles, treadmills, and weight benches. Non-mechanical accessories and items are covered for 90 days. Coverage includes frame cracks under normal use, mechanical gear failures, and defective electronic components. Damage from use beyond the product's rated capacity or outdoor exposure without weatherproofing is not covered.",
+    "expected_tool": "rag_only",
+    "source": "warranty_policy.pdf — Section 2.5",
+    "notes": "Tests sports equipment warranty"
+  },
+  {
+    "id": "rag_032",
+    "category": "rag_only",
+    "question": "How do I track my order?",
+    "expected_answer": "Once your order is dispatched, ShopNova sends a tracking notification by email with the carrier name, tracking number, and a direct link to the carrier's tracking page. You can also track your order at any time by going to My Orders in the ShopNova app or website and clicking on the relevant order. Tracking typically activates within 4 to 8 hours of the seller handing the package to the carrier.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 5 Order Tracking",
+    "notes": "Tests order tracking instructions"
+  },
+  {
+    "id": "rag_033",
+    "category": "rag_only",
+    "question": "What happens after 3 failed delivery attempts?",
+    "expected_answer": "After 3 failed delivery attempts on consecutive business days, the package is held at the nearest post office or carrier depot for 7 calendar days. You will be notified by email and SMS after each failed attempt with instructions for rescheduling or collecting the package. If you do not collect the package within 7 days of the hold notification, it will be returned to the seller and you will receive a refund minus the return freight cost.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 8.2 Failed Delivery Attempts",
+    "notes": "Tests failed delivery attempt policy"
+  },
+  {
+    "id": "rag_034",
+    "category": "rag_only",
+    "question": "Can I return a book I already read?",
+    "expected_answer": "No, books must be in original condition, unread, and without any annotations, highlighting, or damage to be eligible for return. A book that has been read is not eligible for return under ShopNova's policy.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 3.7 Books",
+    "notes": "Tests books return condition"
+  },
+  {
+    "id": "rag_035",
+    "category": "rag_only",
+    "question": "Is same-day delivery available everywhere in Brazil?",
+    "expected_answer": "No, same-day delivery is currently only available in São Paulo, Rio de Janeiro, and Belo Horizonte. It requires orders to be placed before 10:00 am on business days and is subject to seller participation — not all sellers offer this service. Availability is shown at checkout.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 2.3 Same-Day Delivery",
+    "notes": "Tests same-day delivery geographic limitation"
+  },
+  {
+    "id": "rag_036",
+    "category": "rag_only",
+    "question": "How long does delivery take to Rio Grande do Sul?",
+    "expected_answer": "Standard shipping to Rio Grande do Sul (RS) typically takes 3 to 6 business days from a seller based in São Paulo. Deliveries to interior municipalities may take 1 to 2 additional days compared to the capital Porto Alegre.",
+    "expected_tool": "rag_only",
+    "source": "shipping_policy.pdf — Section 3.2 South Region",
+    "notes": "Tests South region delivery estimate"
+  },
+  {
+    "id": "rag_037",
+    "category": "rag_only",
+    "question": "What is the interest rate for installments above 6x?",
+    "expected_answer": "For installments above 6, which are available on orders of R$500 or more, a monthly interest rate applies. The rate varies between 1.5% and 2.5% per month depending on your credit card issuer. The applicable rate and total amount payable will be displayed clearly at checkout before you confirm your order.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 3.2 Interest-Free Installments",
+    "notes": "Tests installment interest rate information"
+  },
+  {
+    "id": "rag_038",
+    "category": "rag_only",
+    "question": "What should I do if I notice an unauthorized charge from ShopNova?",
+    "expected_answer": "If you see a charge from ShopNova that you did not authorise, first check your ShopNova order history to confirm whether it matches a recent order. If no matching order is found, contact ShopNova support immediately at suporte@shopnova.com.br with the transaction date and amount. ShopNova will investigate within 2 business days and reverse any confirmed unauthorised charge.",
+    "expected_tool": "rag_only",
+    "source": "payments_faq.pdf — Section 9.1 Unauthorized Charges",
+    "notes": "Tests unauthorized charge process"
+  },
+  {
+    "id": "rag_039",
+    "category": "rag_only",
+    "question": "Can I return a personalised item?",
+    "expected_answer": "Personalised and custom-made items cannot be returned unless they arrive defective or do not match the approved specification provided at the time of order. If your personalised item is defective or differs from what you ordered, you are eligible for a return or replacement.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 4.3 Personalised Items",
+    "notes": "Tests personalised item return restriction"
+  },
+  {
+    "id": "rag_040",
+    "category": "rag_only",
+    "question": "What should I do if my return is rejected?",
+    "expected_answer": "If your return request is rejected and you believe the decision is incorrect, you can dispute it by clicking Dispute Decision on the return status page within 7 days of the rejection notice. You should provide additional evidence such as photographs or a description. A senior ShopNova support agent will review the case within 3 business days and issue a final decision. If your statutory rights under Brazilian consumer law have been violated, you may also contact PROCON.",
+    "expected_tool": "rag_only",
+    "source": "return_policy.pdf — Section 9.1 Dispute Resolution",
+    "notes": "Tests return rejection dispute process"
+  },
+  {
+    "id": "both_026",
+    "category": "both_tools",
+    "question": "Order 8125fe0b0c7e59423a24402d9cb3ad85 was housewares paid in 6 installments for R$318.32. I want to return it. How long do I have?",
+    "expected_answer": "Order 8125fe0b0c7e59423a24402d9cb3ad85 was housewares delivered on February 28, 2018, paid by credit card in 6 installments for R$318.32. Housewares follow the standard 30-day return window, meaning you had until approximately March 30, 2018 to return it. The item must be unused and in original packaging. If the item is defective, you have 90 days from delivery to file a defect claim.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category + installments. RAG: standard 30-day window"
+  },
+  {
+    "id": "both_027",
+    "category": "both_tools",
+    "question": "I bought bed bath table in order ebeff2700216eccd71f9e7de886652b3 for R$226.56 in 10 installments. It was delivered December 20, 2017. Is it still under warranty?",
+    "expected_answer": "Order ebeff2700216eccd71f9e7de886652b3 was bed and bath table items delivered on December 20, 2017, paid by credit card in 10 installments for R$226.56. Bed and bath products are not electronics or appliances, so they follow the general return and defect policy. Manufacturing defects can be reported within 90 days of delivery, which would have been until approximately March 20, 2018. For a warranty claim beyond that period, you would need to contact the manufacturer directly.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category + installments. RAG: warranty period"
+  },
+  {
+    "id": "both_028",
+    "category": "both_tools",
+    "question": "Order dda92d3694d95fdaa89640d8cccfa8a0 was garden tools for R$328.76 in 5 installments. It arrived November 30, 2017. I want to file a warranty claim. Is it still valid?",
+    "expected_answer": "Order dda92d3694d95fdaa89640d8cccfa8a0 was garden tools delivered on November 30, 2017, paid by credit card in 5 installments for R$328.76. Garden tools fall under sports and leisure — mechanical items are covered for 6 months from delivery, meaning the platform warranty expired around May 30, 2018. If the fault appeared within that period and you are filing now, you should still contact support with documentation of when the fault first appeared. If the manufacturer offers a longer warranty, ShopNova can coordinate with them on your behalf.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: 6-month sports equipment warranty expired"
+  },
+  {
+    "id": "both_029",
+    "category": "both_tools",
+    "question": "Order 3372398865ef7f00841c6ddeed00230d was fashion bags paid in 4 installments. It was delivered April 11, 2018. I wore it once and want to return it.",
+    "expected_answer": "Order 3372398865ef7f00841c6ddeed00230d was a fashion bags and accessories item delivered on April 11, 2018, paid by credit card in 4 installments for R$269.23. Unfortunately, fashion accessories that have been used cannot be returned. ShopNova requires items to be in original unused condition with all tags attached. Since you have already used the item, it does not qualify for a return.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category. RAG: used item non-returnable"
+  },
+  {
+    "id": "both_030",
+    "category": "both_tools",
+    "question": "Order 706296e2ab240216ffef853d1095d04f was a computer for R$1,237.81 in 8 installments, delivered September 4, 2017. It stopped working. What are my options?",
+    "expected_answer": "Order 706296e2ab240216ffef853d1095d04f was a computer delivered on September 4, 2017, paid by credit card in 8 installments for R$1,237.81. Computers fall under electronics — ShopNova's platform warranty covers them for 12 months from delivery, meaning until approximately September 4, 2018. If the fault appeared within this window, you can file a warranty claim through My Orders. Additionally, since this is a high-value item above R$1,000, you may have been eligible for an extended 24-month warranty — check your account to see if this was purchased within 30 days of delivery.",
+    "expected_tool": "both",
+    "notes": "SQL: delivery date + category + high value. RAG: 12-month electronics warranty + extended warranty option"
+  }
+]

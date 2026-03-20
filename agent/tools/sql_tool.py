@@ -24,6 +24,11 @@ QUERY_TIMEOUT = 5  # seconds
 
 _engine = None
 _llm: ChatGroq | None = None
+_last_sql: str = ""  # exposed for UI trace panel
+
+
+def get_last_sql() -> str:
+    return _last_sql
 
 SCHEMA = textwrap.dedent("""
     orders(order_id, customer_id, order_status, order_purchase_timestamp,
@@ -130,7 +135,9 @@ def query_database(question: str) -> str:
     Returns:
         A plain-language answer based on the database results.
     """
+    global _last_sql
     sql = _generate_sql(question)
+    _last_sql = sql
 
     try:
         _validate_sql(sql)
@@ -138,6 +145,7 @@ def query_database(question: str) -> str:
     except (ValueError, SQLAlchemyError) as e:
         # One retry with error context
         sql = _generate_sql(question, error_context=str(e))
+        _last_sql = sql
         try:
             _validate_sql(sql)
             rows = _execute_sql(sql)

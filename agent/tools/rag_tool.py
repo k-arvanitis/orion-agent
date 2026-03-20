@@ -25,6 +25,11 @@ from qdrant_client.models import Fusion, FusionQuery, Prefetch, SparseVector
 
 _qdrant_client: QdrantClient | None = None
 _sparse_encoder: SparseTextEmbedding | None = None
+_last_chunks: list[dict] = []  # exposed for UI trace panel
+
+
+def get_last_chunks() -> list[dict]:
+    return _last_chunks
 
 COLLECTION = "orion-policies"
 DENSE_MODEL = "nomic-embed-text"
@@ -88,9 +93,13 @@ def search_policies(query: str) -> str:
         with_payload=True,
     )
 
+    global _last_chunks
+
     if not result.points:
+        _last_chunks = []
         return "No relevant policy information found."
 
+    chunks = []
     results = []
     for hit in result.points:
         p = hit.payload or {}
@@ -98,6 +107,8 @@ def search_policies(query: str) -> str:
         heading = p.get("heading", p.get("section", ""))
         content = p.get("content", "")
         header = f"[{source} — {heading}]" if heading else f"[{source}]"
+        chunks.append({"source": source, "heading": heading, "content": content})
         results.append(f"{header}\n{content}")
 
+    _last_chunks = chunks
     return "\n\n---\n\n".join(results)

@@ -23,10 +23,13 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import re
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 import psycopg2
@@ -135,6 +138,7 @@ def load_csv(path: Path, conn, batch_size: int) -> None:
     table = csv_to_table_name(path.name)
     pk = PRIMARY_KEYS.get(table, ())
 
+    logger.info("Loading %s -> %s", path.name, table)
     print(f"  {path.name:<50} -> {table}")
 
     raw = pd.read_csv(path, dtype=str)
@@ -172,6 +176,7 @@ def load_csv(path: Path, conn, batch_size: int) -> None:
             print(f"    {done:>7,} / {total:,} rows", end="\r")
 
     conn.commit()
+    logger.info("Loaded %d rows into '%s'", total, table)
     print(f"    {total:>7,} rows loaded  ")
 
 
@@ -223,7 +228,7 @@ def main() -> None:
 
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
-        print("Error: DATABASE_URL must be set in .env", file=sys.stderr)
+        logger.error("DATABASE_URL must be set in .env")
         sys.exit(1)
 
     conn = psycopg2.connect(database_url)

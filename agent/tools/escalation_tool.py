@@ -11,11 +11,14 @@ to post a brief resolution ping to Slack for monitoring.
 """
 
 import base64
+import logging
 import os
 from datetime import datetime
 from email.mime.text import MIMEText
 
 import requests
+
+logger = logging.getLogger(__name__)
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -139,9 +142,13 @@ This message was sent automatically by Orion, ShopNova's support agent.
 def _slack(text: str, urgent: bool = False) -> None:
     webhook = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook:
+        logger.warning("SLACK_WEBHOOK_URL not set — Slack notification skipped")
         return
     prefix = ":rotating_light: *ESCALATION*" if urgent else ":white_check_mark: *Resolved*"
-    requests.post(webhook, json={"text": f"{prefix}\n{text}"}, timeout=5)
+    try:
+        requests.post(webhook, json={"text": f"{prefix}\n{text}"}, timeout=5)
+    except Exception:
+        logger.error("Failed to post Slack notification", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -179,14 +186,14 @@ def escalate(
         try:
             order = _fetch_order(order_id)
         except Exception:
-            pass
+            logger.warning("Failed to fetch order details for %s", order_id, exc_info=True)
 
     # Gmail → customer confirmation
     subject, body = _build_customer_email(customer_email, issue_summary, order)
     try:
         _send_gmail(customer_email, subject, body)
-    except Exception as e:
-        print(f"[Gmail error] {e}")
+    except Exception:
+        logger.error("Failed to send Gmail confirmation to %s", customer_email, exc_info=True)
 
     # Slack → operator urgent alert
     order_line = f"Order: `{order_id}`\n" if order_id else ""

@@ -16,11 +16,14 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 
 import ollama
+
+logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 from fastembed import SparseTextEmbedding
 from qdrant_client import QdrantClient
@@ -67,7 +70,7 @@ def get_client() -> QdrantClient:
     url = os.getenv("QDRANT_URL")
     api_key = os.getenv("QDRANT_API_KEY")
     if not url or not api_key:
-        print("Error: QDRANT_URL and QDRANT_API_KEY must be set in .env", file=sys.stderr)
+        logger.error("QDRANT_URL and QDRANT_API_KEY must be set in .env")
         sys.exit(1)
     return QdrantClient(url=url, api_key=api_key)
 
@@ -77,16 +80,14 @@ def recreate_collection(client: QdrantClient, collection: str) -> None:
     existing = {c.name for c in client.get_collections().collections}
     if collection in existing:
         client.delete_collection(collection)
-        print(f"Dropped existing collection '{collection}'")
+        logger.info("Dropped existing collection '%s'", collection)
 
     client.create_collection(
         collection_name=collection,
-        # Named dense vector
         vectors_config={"dense": VectorParams(size=DENSE_DIM, distance=Distance.COSINE)},
-        # Sparse vector for BM25 — no fixed size needed
         sparse_vectors_config={"sparse": SparseVectorParams()},
     )
-    print(f"Created collection '{collection}' with dense + sparse vectors")
+    logger.info("Created collection '%s' with dense + sparse vectors", collection)
 
 
 def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
@@ -94,6 +95,7 @@ def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
     points: list[PointStruct] = []
 
     for i, chunk in enumerate(chunks, start=1):
+        logger.debug("Embedding %d/%d: %s", i, total, chunk["heading"])
         print(f"  Embedding {i}/{total}: {chunk['heading']}", end="\r")
         points.append(
             PointStruct(
@@ -114,6 +116,7 @@ def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
 
     print()
     client.upsert(collection_name=collection, points=points)
+    logger.info("Upserted %d points into '%s'", len(points), collection)
 
 
 # ---------------------------------------------------------------------------
