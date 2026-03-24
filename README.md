@@ -56,19 +56,19 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 
 ## Tech Stack
 
-| Component | Technology |
-|---|---|
-| Orchestration | LangGraph — stateful ReAct agent with custom `OrionState` |
-| LLM | Groq — Llama 4 Scout 17B (`meta-llama/llama-4-scout-17b-16e-instruct`) |
-| RAG | Qdrant Cloud — hybrid dense + sparse search with RRF fusion |
-| Dense embeddings | nomic-embed-text (768-dim) via Ollama |
-| Sparse embeddings | BM25 via fastembed (`Qdrant/bm25`) |
-| Database | Supabase PostgreSQL — Olist dataset, 9 tables |
-| Text2SQL | Llama 4 Scout + sqlparse validation + SQLAlchemy execution |
-| Escalation | Gmail API (OAuth2) + Slack Incoming Webhooks |
-| Observability | LangSmith — traces every agent run |
-| Evaluation | LangSmith + RAGAS + LLM-as-judge |
-| UI | Streamlit — streaming chat + tool trace sidebar |
+| Component          | Technology                                                              |
+|--------------------|-------------------------------------------------------------------------|
+| Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               |
+| LLM                | Groq — Llama 4 Scout 17B (`meta-llama/llama-4-scout-17b-16e-instruct`)  |
+| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             |
+| Dense embeddings   | nomic-embed-text (768-dim) via Ollama                                   |
+| Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      |
+| Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           |
+| Text2SQL           | Llama 4 Scout + sqlparse validation + SQLAlchemy execution              |
+| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            |
+| Observability      | LangSmith — traces every agent run                                      |
+| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        |
+| UI                 | Streamlit — streaming chat + tool trace sidebar                         |
 
 ---
 
@@ -214,40 +214,38 @@ The eval harness runs **120 labeled question-answer pairs** across 6 categories.
 
 **Dataset breakdown:**
 
-| Category | Count | Description |
-|---|---|---|
-| `rag_only` | 40 | Policy questions that require searching documents — returns, warranties, shipping rules, payment terms |
-| `sql_only` | 35 | Order-specific questions that require querying the database — status, delivery dates, payments, freight values |
-| `both` | 30 | Mixed questions requiring both order facts and policy rules — e.g. "my order arrived damaged, can I return it?" |
-| `edge_case` | 6 | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window |
-| `escalation` | 4 | Frustrated customers and explicit human handoff requests |
-| `adversarial` | 5 | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query |
+| Category      | Count | Description                                                                                         |
+|---------------|-------|-----------------------------------------------------------------------------------------------------|
+| `rag_only`    | 40    | Policy questions — returns, warranties, shipping rules, payment terms                               |
+| `sql_only`    | 35    | Order-specific questions — status, delivery dates, payments, freight values                         |
+| `both`        | 30    | Mixed questions requiring both order facts and policy rules (e.g. "my order arrived damaged, can I return it?") |
+| `edge_case`   | 6     | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window         |
+| `escalation`  | 4     | Frustrated customers and explicit human handoff requests                                            |
+| `adversarial` | 5     | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query           |
 
 **Scoring:**
 
 Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_only` and `both` categories where chunks are retrieved.
 
-| Metric | Method | Applies to |
-|---|---|---|
-| Correctness | LLM-as-judge (Llama 4 Scout) — scores 0-1 against expected answer | All |
-| Tool selection | Exact match against expected tool set | All |
-| Faithfulness | RAGAS — is the answer grounded in retrieved chunks? | RAG rows |
-| Answer relevancy | RAGAS — does the answer address the question? | RAG rows |
-| Context precision | RAGAS — are retrieved chunks relevant? | RAG rows |
-| Context recall | RAGAS — were all relevant chunks retrieved? | RAG rows |
-
-RAGAS metrics only run for `rag_only` and `both` categories.
+| Metric             | Method                                                              | Applies to |
+|--------------------|---------------------------------------------------------------------|------------|
+| Correctness        | LLM-as-judge (Llama 4 Scout) — scores 0–1 against expected answer  | All        |
+| Tool selection     | Exact match against expected tool set                               | All        |
+| Faithfulness       | RAGAS — is the answer grounded in retrieved chunks?                 | RAG rows   |
+| Answer relevancy   | RAGAS — does the answer address the question?                       | RAG rows   |
+| Context precision  | RAGAS — are retrieved chunks relevant?                              | RAG rows   |
+| Context recall     | RAGAS — were all relevant chunks retrieved?                         | RAG rows   |
 
 **Results (orion-v1, 111 examples, escalation skipped):**
 
-| Metric | Score | Examples |
-|---|---|---|
-| Correctness | 0.71 | 111 |
-| Tool selection | 0.90 | 111 |
-| Faithfulness | 0.76 | 64 |
-| Context precision | 0.75 | 64 |
-| Context recall | 0.73 | 64 |
-| Answer relevancy | 0.75 | 64 |
+| Metric             | Score | Examples |
+|--------------------|-------|----------|
+| Correctness        | 0.71  | 111      |
+| Tool selection     | 0.90  | 111      |
+| Faithfulness       | 0.76  | 64       |
+| Context precision  | 0.75  | 64       |
+| Context recall     | 0.73  | 64       |
+| Answer relevancy   | 0.75  | 64       |
 
 ```bash
 uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
@@ -259,15 +257,15 @@ uv run --frozen python eval/run_eval.py --skip-escalation --limit 5
 
 ## Failure Modes
 
-| Failure | Behaviour |
-|---|---|
-| **Groq rate limit** | 429 error surfaced by LangGraph. Use `--limit 5` for smaller eval runs or switch `AGENT_MODEL` in `.env`. |
-| **Qdrant unreachable** | `search_policies` catches the exception and returns *"Policy search temporarily unavailable."* SQL questions still work. |
-| **Ollama not running** | Dense embedding fails; same fallback message. Run `ollama serve` and ensure `nomic-embed-text` is pulled. |
-| **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG questions still work. |
-| **Gmail OAuth expired** | `escalate` logs the error, Slack alert still fires. Re-run `scripts/auth_gmail.py` to refresh `token.json`. |
-| **Slack webhook invalid** | `escalate` logs a warning, Gmail confirmation still sends. |
-| **Hallucination detected** | Guard reinjects a correction prompt and retries the agent once. |
+| Failure                | Behaviour                                                                                                    |
+|------------------------|--------------------------------------------------------------------------------------------------------------|
+| **Groq rate limit**    | 429 error surfaced by LangGraph. Use `--limit 5` for smaller eval runs or switch `AGENT_MODEL` in `.env`.   |
+| **Qdrant unreachable** | `search_policies` catches the exception and returns *"Policy search temporarily unavailable."* SQL still works. |
+| **Ollama not running** | Dense embedding fails; same fallback message. Run `ollama serve` and ensure `nomic-embed-text` is pulled.   |
+| **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
+| **Gmail OAuth expired**| `escalate` logs the error, Slack alert still fires. Re-run `scripts/auth_gmail.py` to refresh `token.json`. |
+| **Slack webhook invalid** | `escalate` logs a warning, Gmail confirmation still sends.                                               |
+| **Hallucination detected** | Guard reinjects a correction prompt and retries the agent once.                                        |
 
 ---
 
@@ -279,13 +277,13 @@ make test
 
 34 tests, no external services required — Groq, Qdrant, Supabase, Gmail, and Slack are all mocked.
 
-| File | What it tests |
-|---|---|
-| `test_guard.py` | PII stripping (CPF, phone), hallucination detection, GuardResult flags |
-| `test_routing.py` | `should_continue` and `after_guard` routing logic |
-| `test_sql_validation.py` | SELECT-only validation, DML rejection, markdown fence stripping |
-| `test_rag_tool.py` | Structured JSON response, chunk metadata, Qdrant/Ollama failure fallbacks |
-| `test_escalation_tool.py` | Email validation, Slack/Gmail calls, partial failure resilience |
+| File                       | What it tests                                                          |
+|----------------------------|------------------------------------------------------------------------|
+| `test_guard.py`            | PII stripping (CPF, phone), hallucination detection, GuardResult flags |
+| `test_routing.py`          | `should_continue` and `after_guard` routing logic                      |
+| `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
+| `test_rag_tool.py`         | Structured JSON response, chunk metadata, Qdrant/Ollama failure fallbacks |
+| `test_escalation_tool.py`  | Email validation, Slack/Gmail calls, partial failure resilience        |
 
 ---
 
