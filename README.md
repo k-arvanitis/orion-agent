@@ -8,6 +8,14 @@ Built on a fictional Brazilian e-commerce store (ShopNova) using the real [Olist
 
 ---
 
+## Tracing
+
+Every agent run is traced in LangSmith — tool decisions, latency, token usage, and guard checks.
+
+![LangSmith trace](assets/langsmith-trace.png)
+
+---
+
 ## Architecture
 
 ```
