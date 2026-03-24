@@ -2,6 +2,10 @@
 
 ![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)
 
+
+https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
+
+
 Orion is a production-minded AI agent for e-commerce customer support. It answers natural language questions by routing them to the right data source, handles multi-step queries that require both structured and unstructured data, and escalates unresolvable issues by alerting the human operator via Slack and sending a confirmation email to the customer via Gmail.
 
 Built on a fictional Brazilian e-commerce store (ShopNova) using the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). Policy documents are synthetic (AI-generated) and modelled on real Brazilian e-commerce regulations. Order data is real.
