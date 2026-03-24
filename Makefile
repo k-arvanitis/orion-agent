@@ -24,7 +24,7 @@ eval:
 	uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
 
 ingest:
-	uv run --frozen chunker data/policies
+	uv run --frozen python -m ingestion.chunker data/policies
 	uv run --frozen python ingestion/ingest.py
 
 docker-build:

@@ -24,18 +24,18 @@ import json
 import logging
 import os
 
-import ollama
-from fastembed import SparseTextEmbedding
 from langchain_core.tools import tool
 from qdrant_client import QdrantClient
 from qdrant_client.models import Fusion, FusionQuery, Prefetch, SparseVector
 
-from agent.config import DENSE_MODEL, QDRANT_COLLECTION, SPARSE_MODEL
+from agent.config import QDRANT_COLLECTION
+from agent.embeddings import dense_embed as _dense_embed
+from agent.embeddings import get_qdrant_client
+from agent.embeddings import sparse_embed as _sparse_embed
 
 logger = logging.getLogger(__name__)
 
 _qdrant_client: QdrantClient | None = None
-_sparse_encoder: SparseTextEmbedding | None = None
 
 TOP_K = 4
 PREFETCH_K = 20
@@ -45,27 +45,8 @@ MAX_CHUNK_CHARS = 600
 def _qdrant() -> QdrantClient:
     global _qdrant_client
     if _qdrant_client is None:
-        _qdrant_client = QdrantClient(
-            url=os.environ["QDRANT_URL"],
-            api_key=os.environ["QDRANT_API_KEY"],
-        )
+        _qdrant_client = get_qdrant_client()
     return _qdrant_client
-
-
-def _sparse() -> SparseTextEmbedding:
-    global _sparse_encoder
-    if _sparse_encoder is None:
-        _sparse_encoder = SparseTextEmbedding(model_name=SPARSE_MODEL)
-    return _sparse_encoder
-
-
-def _dense_embed(text: str) -> list[float]:
-    return ollama.embed(model=DENSE_MODEL, input=text).embeddings[0]
-
-
-def _sparse_embed(text: str) -> SparseVector:
-    result = list(_sparse().embed([text]))[0]
-    return SparseVector(indices=result.indices.tolist(), values=result.values.tolist())
 
 
 @tool

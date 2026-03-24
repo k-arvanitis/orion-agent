@@ -12,6 +12,7 @@ keyword retrieval.
 Usage:
     uv run python ingest.py
     uv run python ingest.py --chunks data/output/document-chunks.json --collection orion-policies
+    uv run python ingest.py --chunks-dir data/output/
 """
 
 import argparse
@@ -21,11 +22,8 @@ import os
 import sys
 from pathlib import Path
 
-import ollama
-
 logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
-from fastembed import SparseTextEmbedding
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -39,27 +37,11 @@ load_dotenv()
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from agent.config import DENSE_MODEL, DENSE_DIM, SPARSE_MODEL, QDRANT_COLLECTION
+from agent.config import DENSE_DIM, QDRANT_COLLECTION
+from agent.embeddings import dense_embed, get_qdrant_client, sparse_embed
 
 DEFAULT_COLLECTION = QDRANT_COLLECTION
 DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"
-
-# Loaded once at module level — model download happens on first use
-_sparse_encoder = SparseTextEmbedding(model_name=SPARSE_MODEL)
-
-
-# ---------------------------------------------------------------------------
-# Embedding
-# ---------------------------------------------------------------------------
-
-
-def dense_embed(text: str) -> list[float]:
-    return ollama.embed(model=DENSE_MODEL, input=text).embeddings[0]
-
-
-def sparse_embed(text: str) -> SparseVector:
-    result = list(_sparse_encoder.embed([text]))[0]
-    return SparseVector(indices=result.indices.tolist(), values=result.values.tolist())
 
 
 # ---------------------------------------------------------------------------
@@ -68,12 +50,10 @@ def sparse_embed(text: str) -> SparseVector:
 
 
 def get_client() -> QdrantClient:
-    url = os.getenv("QDRANT_URL")
-    api_key = os.getenv("QDRANT_API_KEY")
-    if not url or not api_key:
+    if not os.getenv("QDRANT_URL") or not os.getenv("QDRANT_API_KEY"):
         logger.error("QDRANT_URL and QDRANT_API_KEY must be set in .env")
         sys.exit(1)
-    return QdrantClient(url=url, api_key=api_key)
+    return get_qdrant_client()
 
 
 def recreate_collection(client: QdrantClient, collection: str) -> None:
@@ -130,12 +110,19 @@ def build_parser() -> argparse.ArgumentParser:
         prog="ingest",
         description="Embed and push document chunks into Qdrant (dense + sparse hybrid).",
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--chunks",
         metavar="FILE",
         type=Path,
         default=Path(DEFAULT_CHUNKS_FILE),
-        help=f"Path to chunks JSON file (default: {DEFAULT_CHUNKS_FILE}).",
+        help=f"Path to a single chunks JSON file (default: {DEFAULT_CHUNKS_FILE}).",
+    )
+    group.add_argument(
+        "--chunks-dir",
+        metavar="DIR",
+        type=Path,
+        help="Directory of JSON chunk files — all *.json files are merged and ingested.",
     )
     parser.add_argument(
         "--collection",
@@ -150,11 +137,19 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if not args.chunks.exists():
-        parser.error(f"Chunks file '{args.chunks}' not found. Run the chunker first.")
-
-    chunks = json.loads(args.chunks.read_text(encoding="utf-8"))
-    print(f"Loaded {len(chunks)} chunks from '{args.chunks}'\n")
+    if args.chunks_dir:
+        json_files = sorted(args.chunks_dir.glob("*.json"))
+        if not json_files:
+            parser.error(f"No JSON files found in '{args.chunks_dir}'.")
+        chunks = []
+        for f in json_files:
+            chunks.extend(json.loads(f.read_text(encoding="utf-8")))
+        print(f"Loaded {len(chunks)} chunks from {len(json_files)} files in '{args.chunks_dir}'\n")
+    else:
+        if not args.chunks.exists():
+            parser.error(f"Chunks file '{args.chunks}' not found. Run the chunker first.")
+        chunks = json.loads(args.chunks.read_text(encoding="utf-8"))
+        print(f"Loaded {len(chunks)} chunks from '{args.chunks}'\n")
 
     client = get_client()
     recreate_collection(client, args.collection)
