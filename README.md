@@ -152,6 +152,23 @@ make eval    # LangSmith evaluation (skips escalation)
 
 ---
 
+## Docker
+
+The Docker setup runs the Streamlit UI and Ollama in containers. Your Qdrant Cloud and Supabase connections are provided via `.env` — no local database needed.
+
+```bash
+cp .env.example .env   # fill in your keys
+make docker-build      # build the UI image
+make docker-up         # start UI (port 8501) + Ollama (port 11434)
+make docker-setup      # one-time: pull nomic-embed-text into the Ollama container
+```
+
+Then open `http://localhost:8501`.
+
+> **Note:** The containers do not include your Qdrant or Supabase data. You need to run `make ingest` locally (or point to an already-populated Qdrant collection) before the RAG tool returns results.
+
+---
+
 ## Example Questions
 
 **Order lookup (SQL)**
