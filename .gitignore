@@ -23,6 +23,9 @@ data/output/
 # Misc artefacts
 chunks.json
 
+# Conversation memory (SQLite, generated at runtime)
+data/memory.db
+
 # IDE
 *.code-workspace
 .vscode/

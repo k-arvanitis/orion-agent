@@ -23,13 +23,16 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from langchain_core.tools import tool
+from pathlib import Path
 from sqlalchemy import create_engine, text
+
+from agent.config import OPERATOR_EMAIL
 
 _engine = None
 _gmail = None
 
-OPERATOR_EMAIL = "support-team@shopnova.com.br"
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+_TOKEN_PATH = Path(__file__).resolve().parents[2] / "token.json"
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +50,7 @@ def _get_engine():
 def _get_gmail():
     global _gmail
     if _gmail is None:
-        creds = Credentials.from_authorized_user_file("token.json", GMAIL_SCOPES)
+        creds = Credentials.from_authorized_user_file(str(_TOKEN_PATH), GMAIL_SCOPES)
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
         _gmail = build("gmail", "v1", credentials=creds)
@@ -60,6 +63,8 @@ def _get_gmail():
 
 
 def _fetch_order(order_id: str) -> dict | None:
+    # STRING_AGG handles orders with split payments (e.g. credit_card + voucher).
+    # Grouping only on order columns avoids duplicate rows and incorrect SUM.
     query = text("""
         SELECT
             o.order_id,
@@ -68,14 +73,19 @@ def _fetch_order(order_id: str) -> dict | None:
             o.order_purchase_timestamp,
             o.order_estimated_delivery_date,
             o.order_delivered_customer_date,
-            SUM(oi.price + oi.freight_value) AS total_value,
-            op.payment_type
+            COALESCE(SUM(oi.price + oi.freight_value), 0) AS total_value,
+            STRING_AGG(DISTINCT op.payment_type, ', ') AS payment_type
         FROM orders o
         LEFT JOIN order_items oi ON o.order_id = oi.order_id
         LEFT JOIN order_payments op ON o.order_id = op.order_id
         WHERE o.order_id = :order_id
-        GROUP BY o.order_id, o.customer_id, op.payment_type
-        LIMIT 1
+        GROUP BY
+            o.order_id,
+            o.customer_id,
+            o.order_status,
+            o.order_purchase_timestamp,
+            o.order_estimated_delivery_date,
+            o.order_delivered_customer_date
     """)
     with _get_engine().connect() as conn:
         row = conn.execute(query, {"order_id": order_id}).fetchone()
