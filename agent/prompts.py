@@ -67,7 +67,7 @@ Table: order_reviews
 Table: products
   product_id, product_category_name
 
-Table: product_category_translations
+Table: product_category_name_translation
   product_category_name, product_category_name_english
 
 Table: sellers

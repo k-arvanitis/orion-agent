@@ -45,7 +45,7 @@ SCHEMA = textwrap.dedent("""
     order_payments(order_id, payment_sequential, payment_type, payment_installments, payment_value)
     order_reviews(review_id, order_id, review_score, review_comment_message, review_creation_date)
     products(product_id, product_category_name)
-    product_category_translations(product_category_name, product_category_name_english)
+    product_category_name_translation(product_category_name, product_category_name_english)
     sellers(seller_id, seller_city, seller_state)
 """).strip()
 

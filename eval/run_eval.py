@@ -35,7 +35,7 @@ from langchain_ollama import OllamaEmbeddings
 from langsmith import Client, evaluate
 from langsmith.schemas import Example, Run
 from ragas.dataset_schema import SingleTurnSample
-from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall
+from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall  # noqa: deprecated import, collections API requires OpenAI-only llm_factory
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
@@ -141,15 +141,16 @@ TOOL_CATEGORY_MAP = {
     "sql_only":   {"query_database"},
     "rag_only":   {"search_policies"},
     "both_tools": {"query_database", "search_policies"},
+    "both":       {"query_database", "search_policies"},  # dataset alias for both_tools
     "escalation": {"escalate"},
     # adversarial: agent should call NO tools — correct answer is empty set
     "adversarial": set(),
 }
 
-RAG_CATEGORIES = {"rag_only", "both_tools"}
+RAG_CATEGORIES = {"rag_only", "both_tools", "both"}
 
 # Categories where tool selection scoring is meaningful
-SCORED_TOOL_CATEGORIES = {"sql_only", "rag_only", "both_tools", "escalation", "adversarial"}
+SCORED_TOOL_CATEGORIES = {"sql_only", "rag_only", "both_tools", "both", "escalation", "adversarial"}
 
 
 def correctness_evaluator(run: Run, example: Example) -> dict:
@@ -297,7 +298,7 @@ def main() -> None:
             context_recall_evaluator,
         ],
         experiment_prefix=args.experiment,
-        max_concurrency=1,
+        max_concurrency=4,
     )
 
     scores = {

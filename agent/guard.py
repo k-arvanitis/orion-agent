@@ -35,8 +35,18 @@ _NUMBER_RE = re.compile(r"\b\d+(?:[.,]\d+)*\b")
 
 
 def _extract_numbers(text: str) -> set[str]:
-    """Return all digit sequences found in text, normalised to '.' decimals."""
-    return {m.replace(",", ".") for m in _NUMBER_RE.findall(text)}
+    """Return significant numbers found in text, normalised to '.' decimals.
+
+    Only flags decimal numbers (prices) or integers >= 100 (years, large amounts).
+    Single/double digit numbers (day/month components in dates) are too common
+    to be reliable hallucination signals and cause excessive false positives.
+    """
+    results = set()
+    for m in _NUMBER_RE.findall(text):
+        normalised = m.replace(",", ".")
+        if "." in normalised or int(normalised.split(".")[0]) >= 100:
+            results.add(normalised)
+    return results
 
 
 def _check_hallucination(response: str, tool_output: str) -> list[str]:
