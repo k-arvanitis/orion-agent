@@ -37,10 +37,11 @@ from qdrant_client.models import (
 
 load_dotenv()
 
-DENSE_MODEL = "nomic-embed-text"
-DENSE_DIM = 768
-SPARSE_MODEL = "Qdrant/bm25"
-DEFAULT_COLLECTION = "orion-policies"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from agent.config import DENSE_MODEL, DENSE_DIM, SPARSE_MODEL, QDRANT_COLLECTION
+
+DEFAULT_COLLECTION = QDRANT_COLLECTION
 DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"
 
 # Loaded once at module level — model download happens on first use

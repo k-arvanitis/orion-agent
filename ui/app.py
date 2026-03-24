@@ -25,8 +25,6 @@ import streamlit as st
 from langchain_core.messages import AIMessage, ToolMessage
 
 from agent.graph import graph
-from agent.tools.rag_tool import get_last_chunks
-from agent.tools.sql_tool import get_last_sql
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -137,24 +135,36 @@ if prompt := st.chat_input("How can I help you today?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Run agent
+    # Run agent with streaming
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            start = time.time()
-            config = {"configurable": {"thread_id": st.session_state.session_id}}
-            result = graph.invoke(
-                {"messages": [{"role": "user", "content": prompt}]},
-                config=config,
-            )
-            elapsed = time.time() - start
+        placeholder = st.empty()
+        full_response = ""
+        start = time.time()
+        config = {"configurable": {"thread_id": st.session_state.session_id}}
 
-        response = result["messages"][-1].content
-        st.markdown(response)
+        for chunk, metadata in graph.stream(
+            {"messages": [{"role": "user", "content": prompt}]},
+            config=config,
+            stream_mode="messages",
+        ):
+            if (
+                hasattr(chunk, "content")
+                and chunk.content
+                and metadata.get("langgraph_node") == "agent"
+                and not getattr(chunk, "tool_calls", None)
+            ):
+                full_response += chunk.content
+                placeholder.markdown(full_response + "▌")
+
+        elapsed = time.time() - start
+        placeholder.markdown(full_response)
+        response = full_response
 
     st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Build trace from result messages
-    all_messages = result["messages"]
+    # Fetch state from checkpointer — trace data is scoped to this session's thread_id
+    state = graph.get_state(config)
+    all_messages = state.values.get("messages", [])
     tools_called = []
     for msg in all_messages:
         if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -164,8 +174,8 @@ if prompt := st.chat_input("How can I help you today?"):
 
     trace = {
         "tools": tools_called,
-        "sql": get_last_sql() if "query_database" in tools_called else None,
-        "chunks": get_last_chunks() if "search_policies" in tools_called else None,
+        "sql": state.values.get("last_sql") if "query_database" in tools_called else None,
+        "chunks": state.values.get("last_chunks") if "search_policies" in tools_called else None,
         "latency": elapsed,
     }
     st.session_state.traces.append(trace)

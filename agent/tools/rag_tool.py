@@ -6,15 +6,22 @@ Query flow:
   2. Encode the query with BM25/fastembed (sparse, keyword).
   3. Run both searches in parallel via Qdrant prefetch.
   4. Fuse results with Reciprocal Rank Fusion (RRF).
-  5. Return top-k chunks with source citations.
+  5. Return a structured response: answer text + raw chunks for the trace panel.
 
 Why hybrid?
   Policy docs contain exact terms (e.g. "30-day return window", "Boleto",
   "CPF") that pure semantic search can miss or rank poorly. BM25 catches
   exact keyword matches; the dense model handles paraphrase and intent.
   RRF merges both ranked lists without needing a learned weighting.
+
+Return format:
+  JSON string: {"answer": "<text for LLM>", "chunks": [{"source", "heading", "content"}]}
+  The graph's tools_node puts "answer" into ToolMessage.content (what the LLM sees)
+  and stores "chunks" in graph state (what the UI trace panel shows).
 """
 
+import json
+import logging
 import os
 
 import ollama
@@ -23,19 +30,16 @@ from langchain_core.tools import tool
 from qdrant_client import QdrantClient
 from qdrant_client.models import Fusion, FusionQuery, Prefetch, SparseVector
 
+from agent.config import DENSE_MODEL, QDRANT_COLLECTION, SPARSE_MODEL
+
+logger = logging.getLogger(__name__)
+
 _qdrant_client: QdrantClient | None = None
 _sparse_encoder: SparseTextEmbedding | None = None
-_last_chunks: list[dict] = []  # exposed for UI trace panel
 
-
-def get_last_chunks() -> list[dict]:
-    return _last_chunks
-
-COLLECTION = "orion-policies"
-DENSE_MODEL = "nomic-embed-text"
-SPARSE_MODEL = "Qdrant/bm25"
 TOP_K = 4
-PREFETCH_K = 20  # candidates per searcher before fusion
+PREFETCH_K = 20
+MAX_CHUNK_CHARS = 600
 
 
 def _qdrant() -> QdrantClient:
@@ -77,30 +81,37 @@ def search_policies(query: str) -> str:
         query: The customer's question or the topic to search for.
 
     Returns:
-        Relevant policy excerpts with source citations.
+        JSON string with 'answer' (text for the LLM) and 'chunks' (source metadata).
     """
-    dense_vector = _dense_embed(query)
-    sparse_vector = _sparse_embed(query)
+    logger.info("RAG search: %r", query)
 
-    result = _qdrant().query_points(
-        collection_name=COLLECTION,
-        prefetch=[
-            Prefetch(query=dense_vector, using="dense", limit=PREFETCH_K),
-            Prefetch(query=sparse_vector, using="sparse", limit=PREFETCH_K),
-        ],
-        query=FusionQuery(fusion=Fusion.RRF),
-        limit=TOP_K,
-        with_payload=True,
-    )
+    try:
+        dense_vector = _dense_embed(query)
+        sparse_vector = _sparse_embed(query)
 
-    global _last_chunks
+        result = _qdrant().query_points(
+            collection_name=QDRANT_COLLECTION,
+            prefetch=[
+                Prefetch(query=dense_vector, using="dense", limit=PREFETCH_K),
+                Prefetch(query=sparse_vector, using="sparse", limit=PREFETCH_K),
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),
+            limit=TOP_K,
+            with_payload=True,
+        )
+    except Exception:
+        logger.error("RAG search failed", exc_info=True)
+        return json.dumps({
+            "answer": "Policy search is temporarily unavailable. Try the database for order information, or ask the customer to contact support.",
+            "chunks": [],
+        })
 
     if not result.points:
-        _last_chunks = []
-        return "No relevant policy information found."
+        logger.debug("RAG search returned no results for: %r", query)
+        return json.dumps({"answer": "No relevant policy information found.", "chunks": []})
 
     chunks = []
-    results = []
+    answer_parts = []
     for hit in result.points:
         p = hit.payload or {}
         source = p.get("source", "unknown")
@@ -108,7 +119,10 @@ def search_policies(query: str) -> str:
         content = p.get("content", "")
         header = f"[{source} — {heading}]" if heading else f"[{source}]"
         chunks.append({"source": source, "heading": heading, "content": content})
-        results.append(f"{header}\n{content}")
+        answer_parts.append(f"{header}\n{content[:MAX_CHUNK_CHARS]}")
 
-    _last_chunks = chunks
-    return "\n\n---\n\n".join(results)
+    logger.debug("RAG returned %d chunks", len(chunks))
+    return json.dumps({
+        "answer": "\n\n---\n\n".join(answer_parts),
+        "chunks": chunks,
+    })

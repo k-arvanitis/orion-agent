@@ -7,8 +7,15 @@ Flow:
   3. SQLAlchemy executes it with a 100-row limit and 5s timeout.
   4. Groq interprets the raw rows into a plain-language answer.
   5. On SQL error, one retry with the error message fed back to Groq.
+
+Return format:
+  JSON string: {"answer": "<text for LLM>", "sql": "<query that ran>"}
+  The graph's tools_node puts "answer" into ToolMessage.content (what the LLM sees)
+  and stores "sql" in graph state (what the UI trace panel shows).
 """
 
+import json
+import logging
 import os
 import textwrap
 
@@ -18,17 +25,17 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import sqlparse
 
+from agent.config import AGENT_MODEL
+
+logger = logging.getLogger(__name__)
+
 ALLOWED_STATEMENTS = {"SELECT"}
 ROW_LIMIT = 100
 QUERY_TIMEOUT = 5  # seconds
+MAX_OUTPUT_CHARS = 3000
 
 _engine = None
 _llm: ChatGroq | None = None
-_last_sql: str = ""  # exposed for UI trace panel
-
-
-def get_last_sql() -> str:
-    return _last_sql
 
 SCHEMA = textwrap.dedent("""
     orders(order_id, customer_id, order_status, order_purchase_timestamp,
@@ -56,7 +63,7 @@ def _get_engine():
 def _get_llm() -> ChatGroq:
     global _llm
     if _llm is None:
-        _llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0)
+        _llm = ChatGroq(model=AGENT_MODEL, temperature=0)
     return _llm
 
 
@@ -80,7 +87,6 @@ def _generate_sql(question: str, error_context: str = "") -> str:
 
     response = _get_llm().invoke(prompt)
     sql = response.content.strip()
-    # Strip markdown code fences if model wraps the query
     if sql.startswith("```"):
         sql = sql.split("```")[1]
         if sql.lower().startswith("sql"):
@@ -133,23 +139,34 @@ def query_database(question: str) -> str:
         question: The customer's question about their order or account.
 
     Returns:
-        A plain-language answer based on the database results.
+        JSON string with 'answer' (text for the LLM) and 'sql' (query that ran).
     """
-    global _last_sql
+    logger.info("SQL query for: %r", question)
+
     sql = _generate_sql(question)
-    _last_sql = sql
+    logger.debug("Generated SQL: %s", sql)
 
     try:
         _validate_sql(sql)
         rows = _execute_sql(sql)
+        logger.debug("Query returned %d rows", len(rows))
     except (ValueError, SQLAlchemyError) as e:
-        # One retry with error context
+        logger.warning("SQL attempt 1 failed (%s), retrying with error context", e)
         sql = _generate_sql(question, error_context=str(e))
-        _last_sql = sql
+        logger.debug("Retry SQL: %s", sql)
         try:
             _validate_sql(sql)
             rows = _execute_sql(sql)
+            logger.debug("Retry returned %d rows", len(rows))
         except (ValueError, SQLAlchemyError) as retry_err:
-            return f"I was unable to retrieve that information. Error: {retry_err}"
+            logger.error("SQL retry also failed: %s", retry_err)
+            return json.dumps({
+                "answer": "I was unable to retrieve that information from the database.",
+                "sql": sql,
+            })
 
-    return _interpret(question, rows)
+    answer = _interpret(question, rows)
+    return json.dumps({
+        "answer": answer[:MAX_OUTPUT_CHARS],
+        "sql": sql,
+    })

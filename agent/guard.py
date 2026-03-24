@@ -17,7 +17,7 @@ import re
 
 _PII_PATTERNS = [
     re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"),          # CPF: 123.456.789-00
-    re.compile(r"\b\(\d{2}\)\s*\d{4,5}-\d{4}\b"),           # Phone: (11) 91234-5678
+    re.compile(r"\(\d{2}\)\s*\d{4,5}-\d{4}"),                 # Phone: (11) 91234-5678
 ]
 
 
