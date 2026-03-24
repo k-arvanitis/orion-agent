@@ -1,4 +1,4 @@
-# Orion — AI Customer Support Agent
+# Orion - AI Customer Support Agent
 
 ![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)
 
