@@ -206,29 +206,44 @@ I want to speak to a real person. My email is customer@example.com.
 
 ## Evaluation
 
-The eval harness runs **120 labeled test cases** across 6 categories:
+The eval harness runs **120 labeled question-answer pairs** across 6 categories. The dataset was generated using Claude (Anthropic) by providing the real Olist schema and synthetic policy documents as context, then manually reviewed for correctness.
+
+**Dataset breakdown:**
 
 | Category | Count | Description |
 |---|---|---|
-| `sql_only` | 35 | Order status, payments, delivery dates |
-| `rag_only` | 40 | Policy questions (returns, warranty, shipping) |
-| `both_tools` | 30 | Requires both order data and policy rules |
-| `edge_case` | 6 | Non-returnable items, expired boletos, etc. |
-| `escalation` | 4 | Frustrated customers, explicit human requests |
-| `adversarial` | 5 | Prompt injection, out-of-scope, SQL injection, PII in query |
+| `rag_only` | 40 | Policy questions that require searching documents — returns, warranties, shipping rules, payment terms |
+| `sql_only` | 35 | Order-specific questions that require querying the database — status, delivery dates, payments, freight values |
+| `both` | 30 | Mixed questions requiring both order facts and policy rules — e.g. "my order arrived damaged, can I return it?" |
+| `edge_case` | 6 | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window |
+| `escalation` | 4 | Frustrated customers and explicit human handoff requests |
+| `adversarial` | 5 | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query |
 
-Scored with 6 metrics:
+**Scoring:**
 
-| Metric | Method |
-|---|---|
-| Correctness | LLM-as-judge (Llama 4 Scout) comparing response to expected answer |
-| Tool selection | Exact match against expected tool category |
-| Faithfulness | RAGAS — is the answer grounded in the retrieved chunks? |
-| Answer relevancy | RAGAS — does the answer actually address the question? |
-| Context precision | RAGAS — are the retrieved chunks relevant to the question? |
-| Context recall | RAGAS — were all relevant chunks retrieved? |
+Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_only` and `both` categories where chunks are retrieved.
 
-RAGAS metrics only run for `rag_only` and `both_tools` categories.
+| Metric | Method | Applies to |
+|---|---|---|
+| Correctness | LLM-as-judge (Llama 4 Scout) — scores 0-1 against expected answer | All |
+| Tool selection | Exact match against expected tool set | All |
+| Faithfulness | RAGAS — is the answer grounded in retrieved chunks? | RAG rows |
+| Answer relevancy | RAGAS — does the answer address the question? | RAG rows |
+| Context precision | RAGAS — are retrieved chunks relevant? | RAG rows |
+| Context recall | RAGAS — were all relevant chunks retrieved? | RAG rows |
+
+RAGAS metrics only run for `rag_only` and `both` categories.
+
+**Results (orion-v1, 111 examples, escalation skipped):**
+
+| Metric | Score | Examples |
+|---|---|---|
+| Correctness | 0.71 | 111 |
+| Tool selection | 0.90 | 111 |
+| Faithfulness | 0.76 | 64 |
+| Context precision | 0.75 | 64 |
+| Context recall | 0.73 | 64 |
+| Answer relevancy | 0.75 | 64 |
 
 ```bash
 uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
