@@ -1,3 +1,6 @@
+<!-- TODO: update GitHub repo description to:
+"E-commerce customer support agent — LangGraph ReAct, hybrid RAG (Qdrant), Text2SQL (Supabase), hallucination guard, 120-case eval. Stack: Groq Llama 4, LangSmith, RAGAS, Docker."
+This must be set manually in the GitHub repo Settings > About section. -->
 [![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -11,6 +14,22 @@
 
 https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
 
+---
+
+## Demo
+
+The recording above covers four query types:
+
+| Timestamp | Query type | What it demonstrates |
+|---|---|---|
+| 0:00 – 0:20 | Policy (RAG only) | Agent retrieves return policy chunk from Qdrant, cites source heading in the trace panel |
+| 0:21 – 0:50 | Order lookup (SQL only) | Text2SQL generates a validated SELECT, executes against Supabase, returns structured result |
+| 0:51 – 1:20 | Multi-tool | Agent calls both tools in sequence — trace panel shows tool call order, retrieved chunks, and the SQL that ran |
+| 1:21 – 1:40 | Escalation | Slack alert and Gmail confirmation fire independently — both tool calls visible in the trace |
+
+The right panel in the UI is the LangSmith tool trace — tool selection decisions, latency per step, and retrieved chunks are visible in real time alongside the streamed response.
+
+---
 
 Orion is a production-minded AI agent for e-commerce customer support. It answers natural language questions by routing them to the right data source, handles multi-step queries that require both structured and unstructured data, and escalates unresolvable issues by alerting the human operator via Slack and sending a confirmation email to the customer via Gmail.
 
@@ -60,21 +79,35 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 
 ---
 
+## Key Engineering Decisions
+
+**Structured tool isolation** — tools return `{"answer": ..., "chunks/sql": ...}`. The agent receives only the `answer` field; raw source data is stored in `OrionState` for the UI trace panel. Prevents the LLM from reasoning about schema internals mid-conversation.
+
+**Numerical hallucination guard with retry** — every number in the final response is cross-checked against raw tool output. On mismatch, the agent is re-prompted once with the flagged discrepancy explicitly stated. If the retry also fails, the cleaned response is returned rather than a hallucinated one.
+
+**Hybrid retrieval over pure semantic search** — policy documents contain exact terms ("30-day return window", "Boleto", "CPF") that dense-only search misses under paraphrase. BM25 handles keyword precision; the dense model handles intent. Both run in parallel via Qdrant prefetch and are fused with RRF — no learned weighting required.
+
+**SELECT-only SQL validation** — generated queries are validated by sqlparse (DML rejection, markdown fence stripping) before execution. On failure, the error is fed back to the LLM for one retry. Natural language SQL injection is tested explicitly in the adversarial eval set.
+
+**Partial failure resilience** — every external dependency degrades independently. Slack and Gmail fire separately in escalation. RAG and SQL tools catch exceptions and return fallback messages without killing the other tool's response. The system never returns a silent empty answer.
+
+---
+
 ## Tech Stack
 
-| Component          | Technology                                                              |
-|--------------------|-------------------------------------------------------------------------|
-| Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               |
-| LLM                | Groq — Llama 4 Scout 17B (`meta-llama/llama-4-scout-17b-16e-instruct`)  |
-| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             |
-| Dense embeddings   | nomic-embed-text (768-dim) via Ollama                                   |
-| Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      |
-| Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           |
-| Text2SQL           | Llama 4 Scout + sqlparse validation + SQLAlchemy execution              |
-| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            |
-| Observability      | LangSmith — traces every agent run                                      |
-| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        |
-| UI                 | Streamlit — streaming chat + tool trace sidebar                         |
+| Component          | Technology                                                              | Why |
+|--------------------|-------------------------------------------------------------------------|-----|
+| Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Stateful graph with explicit node/edge routing; per-thread OrionState allows session isolation without external state management |
+| LLM                | Groq — Llama 4 Scout 17B (`meta-llama/llama-4-scout-17b-16e-instruct`)  | Fast inference via Groq; OpenAI-compatible API allows swapping models via env var without code changes; Llama 4 Scout handles tool use reliably at this scale |
+| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Qdrant Cloud: no local infra to manage; native hybrid search (dense + sparse) with RRF fusion in a single query; better retrieval quality than pgvector for this use case |
+| Dense embeddings   | nomic-embed-text (768-dim) via Ollama                                   | Local inference via Ollama — document content never leaves the machine at embedding time |
+| Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | BM25 catches exact keyword matches (order IDs, policy terms like "Boleto", "CPF") that semantic search misses |
+| Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Supabase: managed Postgres with no infra overhead; SQLAlchemy for type-safe query execution |
+| Text2SQL           | Llama 4 Scout + sqlparse validation + SQLAlchemy execution              | Schema-aware prompt + SELECT-only validation via sqlparse + one retry on failure — three layers of safety before a query reaches the DB |
+| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Gmail OAuth2 + Slack webhooks are independent — one failing does not block the other |
+| Observability      | LangSmith — traces every agent run                                      | LangSmith traces every agent run: tool decisions, latency, token usage, guard checks — queryable after the fact |
+| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | RAGAS for retrieval quality + LLM-as-judge for answer correctness + exact match for tool selection — three complementary signals |
+| UI                 | Streamlit — streaming chat + tool trace sidebar                         | Streamlit: fastest path to a working demo; tool trace sidebar exposes agent internals without a separate backend |
 
 ---
 
@@ -253,6 +286,8 @@ Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_on
 | Context recall     | 0.73  | 64       |
 | Answer relevancy   | 0.75  | 64       |
 
+**Tool selection accuracy (0.90)** is the most meaningful signal: the agent routes to the correct tool 9 out of 10 times with no explicit classifier — routing emerges purely from ReAct reasoning and the system prompt. **Correctness (0.71)** is lower primarily on multi-tool queries where policy context is ambiguous relative to the order data — most failures are on `both`-category questions at the edge of the policy window (e.g. late deliveries where eligibility depends on a calculation across both tools).
+
 ```bash
 uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
 # smoke test
@@ -330,3 +365,13 @@ orion-agent/
 ├── Makefile                  # make run / ui / test / eval / ingest
 └── .env.example
 ```
+
+---
+
+## Known Limitations
+
+- **Hallucination guard is numerical only** — the guard catches numeric mismatches (prices, dates, order IDs) but does not detect semantic hallucinations such as misinterpreted policy rules.
+- **In-memory thread state** — `OrionState` is not persisted. A service restart clears all conversation history. For production use, LangGraph's checkpointer interface would need to be wired to a durable store (e.g. Redis or Postgres).
+- **Ollama dependency for embeddings** — the Docker setup requires pulling `nomic-embed-text` (~274 MB) into the Ollama container on first run. Swapping to a hosted embedding API (e.g. `text-embedding-3-small`) would remove this dependency at the cost of per-query API calls.
+- **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
+- **Groq rate limits under eval load** — running the full eval concurrently hits Groq's free-tier rate limit. The `--limit` flag exists for this reason. A paid tier or local vLLM endpoint removes this constraint.
