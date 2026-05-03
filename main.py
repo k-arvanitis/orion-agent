@@ -51,8 +51,14 @@ def run(session_id: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="orion", description="Orion customer support agent.")
-    parser.add_argument("--session", default=str(uuid.uuid4()), help="Session ID for conversation memory.")
+    parser = argparse.ArgumentParser(
+        prog="orion", description="Orion customer support agent."
+    )
+    parser.add_argument(
+        "--session",
+        default=str(uuid.uuid4()),
+        help="Session ID for conversation memory.",
+    )
     args = parser.parse_args()
     run(args.session)
 

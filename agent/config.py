@@ -13,9 +13,7 @@ import os
 
 # Groq model used for the agent and eval judge.
 # Override with: AGENT_MODEL=meta-llama/llama-4-maverick-17b-128e-instruct
-AGENT_MODEL: str = os.getenv(
-    "AGENT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
-)
+AGENT_MODEL: str = os.getenv("AGENT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
 # ---------------------------------------------------------------------------
 # Embeddings

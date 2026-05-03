@@ -18,13 +18,11 @@ os.environ.setdefault("DATABASE_URL", "postgresql://localhost/test")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from unittest.mock import MagicMock
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END
 
 from agent.graph import after_guard, should_continue
-
 
 # ---------------------------------------------------------------------------
 # should_continue
@@ -32,7 +30,11 @@ from agent.graph import after_guard, should_continue
 
 
 def test_should_continue_returns_tools_when_tool_calls_present():
-    tool_call = {"name": "search_policies", "args": {"query": "return policy"}, "id": "call1"}
+    tool_call = {
+        "name": "search_policies",
+        "args": {"query": "return policy"},
+        "id": "call1",
+    }
     msg = AIMessage(content="", tool_calls=[tool_call])
     state = {"messages": [msg]}
     assert should_continue(state) == "tools"

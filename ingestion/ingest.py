@@ -11,7 +11,8 @@ keyword retrieval.
 
 Usage:
     uv run python ingest.py
-    uv run python ingest.py --chunks data/output/document-chunks.json --collection orion-policies
+    uv run python ingest.py --chunks data/output/document-chunks.json \
+--collection orion-policies
     uv run python ingest.py --chunks-dir data/output/
 """
 
@@ -22,23 +23,22 @@ import os
 import sys
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
     PointStruct,
-    SparseVector,
     SparseVectorParams,
     VectorParams,
 )
 
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from agent.config import DENSE_DIM, QDRANT_COLLECTION
-from agent.embeddings import dense_embed, get_qdrant_client, sparse_embed
+from agent.config import DENSE_DIM, QDRANT_COLLECTION  # noqa: E402
+from agent.embeddings import dense_embed, get_qdrant_client, sparse_embed  # noqa: E402
 
 DEFAULT_COLLECTION = QDRANT_COLLECTION
 DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"
@@ -65,7 +65,9 @@ def recreate_collection(client: QdrantClient, collection: str) -> None:
 
     client.create_collection(
         collection_name=collection,
-        vectors_config={"dense": VectorParams(size=DENSE_DIM, distance=Distance.COSINE)},
+        vectors_config={
+            "dense": VectorParams(size=DENSE_DIM, distance=Distance.COSINE)
+        },
         sparse_vectors_config={"sparse": SparseVectorParams()},
     )
     logger.info("Created collection '%s' with dense + sparse vectors", collection)
@@ -108,7 +110,9 @@ def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ingest",
-        description="Embed and push document chunks into Qdrant (dense + sparse hybrid).",
+        description=(
+            "Embed and push document chunks into Qdrant (dense + sparse hybrid)."
+        ),
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -122,7 +126,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--chunks-dir",
         metavar="DIR",
         type=Path,
-        help="Directory of JSON chunk files — all *.json files are merged and ingested.",
+        help=(
+            "Directory of JSON chunk files — all *.json files are merged and ingested."
+        ),
     )
     parser.add_argument(
         "--collection",
@@ -144,10 +150,15 @@ def main() -> None:
         chunks = []
         for f in json_files:
             chunks.extend(json.loads(f.read_text(encoding="utf-8")))
-        print(f"Loaded {len(chunks)} chunks from {len(json_files)} files in '{args.chunks_dir}'\n")
+        print(
+            f"Loaded {len(chunks)} chunks from {len(json_files)} files "
+            f"in '{args.chunks_dir}'\n"
+        )
     else:
         if not args.chunks.exists():
-            parser.error(f"Chunks file '{args.chunks}' not found. Run the chunker first.")
+            parser.error(
+                f"Chunks file '{args.chunks}' not found. Run the chunker first."
+            )
         chunks = json.loads(args.chunks.read_text(encoding="utf-8"))
         print(f"Loaded {len(chunks)} chunks from '{args.chunks}'\n")
 

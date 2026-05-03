@@ -13,20 +13,17 @@ to post a brief resolution ping to Slack for monitoring.
 import base64
 import logging
 import os
-from datetime import datetime
 from email.mime.text import MIMEText
+from pathlib import Path
 
 import requests
-
-logger = logging.getLogger(__name__)
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from langchain_core.tools import tool
-from pathlib import Path
 from sqlalchemy import create_engine, text
 
-from agent.config import OPERATOR_EMAIL
+logger = logging.getLogger(__name__)
 
 _engine = None
 _gmail = None
@@ -91,8 +88,16 @@ def _fetch_order(order_id: str) -> dict | None:
         row = conn.execute(query, {"order_id": order_id}).fetchone()
     if not row:
         return None
-    keys = ["order_id", "customer_id", "order_status", "purchase_date",
-            "estimated_delivery", "actual_delivery", "total_value", "payment_type"]
+    keys = [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "purchase_date",
+        "estimated_delivery",
+        "actual_delivery",
+        "total_value",
+        "payment_type",
+    ]
     return dict(zip(keys, row))
 
 
@@ -106,9 +111,7 @@ def _send_gmail(to: str, subject: str, body: str) -> None:
     message["to"] = to
     message["subject"] = subject
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    _get_gmail().users().messages().send(
-        userId="me", body={"raw": raw}
-    ).execute()
+    _get_gmail().users().messages().send(userId="me", body={"raw": raw}).execute()
 
 
 def _build_customer_email(
@@ -132,7 +135,8 @@ Total:       {total}
 
     body = f"""Hi,
 
-We've received your support request and a member of our team will get back to you within 24 hours.
+We've received your support request and a member of our team will get back to
+you within 24 hours.
 
 {order_block}
 Thank you for your patience.
@@ -154,7 +158,9 @@ def _slack(text: str, urgent: bool = False) -> None:
     if not webhook:
         logger.warning("SLACK_WEBHOOK_URL not set — Slack notification skipped")
         return
-    prefix = ":rotating_light: *ESCALATION*" if urgent else ":white_check_mark: *Resolved*"
+    prefix = (
+        ":rotating_light: *ESCALATION*" if urgent else ":white_check_mark: *Resolved*"
+    )
     try:
         requests.post(webhook, json={"text": f"{prefix}\n{text}"}, timeout=5)
     except Exception:
@@ -196,23 +202,24 @@ def escalate(
         try:
             order = _fetch_order(order_id)
         except Exception:
-            logger.warning("Failed to fetch order details for %s", order_id, exc_info=True)
+            logger.warning(
+                "Failed to fetch order details for %s", order_id, exc_info=True
+            )
 
     # Gmail → customer confirmation
     subject, body = _build_customer_email(customer_email, issue_summary, order)
     try:
         _send_gmail(customer_email, subject, body)
     except Exception:
-        logger.error("Failed to send Gmail confirmation to %s", customer_email, exc_info=True)
+        logger.error(
+            "Failed to send Gmail confirmation to %s", customer_email, exc_info=True
+        )
 
     # Slack → operator urgent alert
     order_line = f"Order: `{order_id}`\n" if order_id else ""
     customer_id_line = f"Customer ID: `{order['customer_id']}`\n" if order else ""
     slack_text = (
-        f"Email: {customer_email}\n"
-        f"{customer_id_line}"
-        f"{order_line}"
-        f"Issue: {issue_summary}"
+        f"Email: {customer_email}\n{customer_id_line}{order_line}Issue: {issue_summary}"
     )
     _slack(slack_text, urgent=True)
 

@@ -3,7 +3,8 @@ Orion eval harness — uploads the dataset to LangSmith and runs an experiment.
 
 Evaluators
 ----------
-- correctness   : LLM-as-judge (Llama 4 Scout via Groq) comparing agent answer vs expected answer
+- correctness   : LLM-as-judge (Llama 4 Scout via Groq) comparing agent answer
+                  vs expected answer
 - tool_selection: exact match between tools called and expected_tool category
 - faithfulness  : RAGAS — is the answer grounded in the retrieved chunks?
                   Only runs for rag_only and both_tools categories.
@@ -18,28 +19,32 @@ Usage
 
 import argparse
 import json
-import re
 import sys
 import uuid
 from pathlib import Path
 
-# Ensure project root is on the path when run from the eval/ subdirectory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from dotenv import load_dotenv
-load_dotenv()
-
 from langchain_core.messages import AIMessage
 from langchain_groq import ChatGroq
 from langchain_ollama import OllamaEmbeddings
 from langsmith import Client, evaluate
 from langsmith.schemas import Example, Run
 from ragas.dataset_schema import SingleTurnSample
-from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall  # noqa: deprecated import, collections API requires OpenAI-only llm_factory
-from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import (
+    AnswerRelevancy,
+    ContextPrecision,
+    ContextRecall,
+    Faithfulness,
+)
 
-from agent.config import AGENT_MODEL
+# Ensure project root is on the path when run from the eval/ subdirectory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+load_dotenv()
+
+from agent.config import AGENT_MODEL  # noqa: E402
 
 orion_graph = None  # initialised in main()
 
@@ -92,16 +97,22 @@ def run_agent(inputs: dict) -> dict:
 
     messages = result["messages"]
     answer = next(
-        (m.content for m in reversed(messages) if isinstance(m, AIMessage) and m.content),
+        (
+            m.content
+            for m in reversed(messages)
+            if isinstance(m, AIMessage) and m.content
+        ),
         "",
     )
 
-    tools_called = list({
-        tc["name"]
-        for m in messages
-        if isinstance(m, AIMessage)
-        for tc in (m.tool_calls or [])
-    })
+    tools_called = list(
+        {
+            tc["name"]
+            for m in messages
+            if isinstance(m, AIMessage)
+            for tc in (m.tool_calls or [])
+        }
+    )
 
     chunks = result.get("last_chunks", [])
     contexts = [c["content"] for c in chunks] if chunks else []
@@ -115,11 +126,13 @@ def run_agent(inputs: dict) -> dict:
 
 _judge = ChatGroq(model=AGENT_MODEL, temperature=0)
 _ragas_llm = LangchainLLMWrapper(ChatGroq(model=AGENT_MODEL, temperature=0))
-_ragas_embeddings = LangchainEmbeddingsWrapper(OllamaEmbeddings(model="nomic-embed-text"))
-_faithfulness      = Faithfulness(llm=_ragas_llm)
-_answer_relevancy  = AnswerRelevancy(llm=_ragas_llm, embeddings=_ragas_embeddings)
+_ragas_embeddings = LangchainEmbeddingsWrapper(
+    OllamaEmbeddings(model="nomic-embed-text")
+)
+_faithfulness = Faithfulness(llm=_ragas_llm)
+_answer_relevancy = AnswerRelevancy(llm=_ragas_llm, embeddings=_ragas_embeddings)
 _context_precision = ContextPrecision(llm=_ragas_llm)
-_context_recall    = ContextRecall(llm=_ragas_llm)
+_context_recall = ContextRecall(llm=_ragas_llm)
 
 _CORRECTNESS_PROMPT = """\
 You are evaluating a customer support AI agent.
@@ -138,10 +151,10 @@ Score the agent answer from 0 to 1:
 Reply with ONLY a number between 0 and 1. No explanation."""
 
 TOOL_CATEGORY_MAP = {
-    "sql_only":   {"query_database"},
-    "rag_only":   {"search_policies"},
+    "sql_only": {"query_database"},
+    "rag_only": {"search_policies"},
     "both_tools": {"query_database", "search_policies"},
-    "both":       {"query_database", "search_policies"},  # dataset alias for both_tools
+    "both": {"query_database", "search_policies"},  # dataset alias for both_tools
     "escalation": {"escalate"},
     # adversarial: agent should call NO tools — correct answer is empty set
     "adversarial": set(),
@@ -150,7 +163,14 @@ TOOL_CATEGORY_MAP = {
 RAG_CATEGORIES = {"rag_only", "both_tools", "both"}
 
 # Categories where tool selection scoring is meaningful
-SCORED_TOOL_CATEGORIES = {"sql_only", "rag_only", "both_tools", "both", "escalation", "adversarial"}
+SCORED_TOOL_CATEGORIES = {
+    "sql_only",
+    "rag_only",
+    "both_tools",
+    "both",
+    "escalation",
+    "adversarial",
+}
 
 
 def correctness_evaluator(run: Run, example: Example) -> dict:
@@ -191,7 +211,10 @@ def faithfulness_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "faithfulness", "score": None}
     try:
-        return {"key": "faithfulness", "score": float(_faithfulness.single_turn_score(sample))}
+        return {
+            "key": "faithfulness",
+            "score": float(_faithfulness.single_turn_score(sample)),
+        }
     except Exception:
         return {"key": "faithfulness", "score": None}
 
@@ -201,7 +224,10 @@ def answer_relevancy_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "answer_relevancy", "score": None}
     try:
-        return {"key": "answer_relevancy", "score": float(_answer_relevancy.single_turn_score(sample))}
+        return {
+            "key": "answer_relevancy",
+            "score": float(_answer_relevancy.single_turn_score(sample)),
+        }
     except Exception:
         return {"key": "answer_relevancy", "score": None}
 
@@ -211,7 +237,10 @@ def context_precision_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "context_precision", "score": None}
     try:
-        return {"key": "context_precision", "score": float(_context_precision.single_turn_score(sample))}
+        return {
+            "key": "context_precision",
+            "score": float(_context_precision.single_turn_score(sample)),
+        }
     except Exception:
         return {"key": "context_precision", "score": None}
 
@@ -221,7 +250,10 @@ def context_recall_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "context_recall", "score": None}
     try:
-        return {"key": "context_recall", "score": float(_context_recall.single_turn_score(sample))}
+        return {
+            "key": "context_recall",
+            "score": float(_context_recall.single_turn_score(sample)),
+        }
     except Exception:
         return {"key": "context_recall", "score": None}
 
@@ -257,7 +289,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-escalation",
         action="store_true",
-        help="Skip escalation test cases (avoids sending real Slack/Gmail during eval).",
+        help=(
+            "Skip escalation test cases (avoids sending real Slack/Gmail during eval)."
+        ),
     )
     parser.add_argument(
         "--limit",
@@ -275,6 +309,7 @@ def main() -> None:
 
     global orion_graph
     from agent.graph import graph as _g
+
     orion_graph = _g
     print(f"Using Groq ({AGENT_MODEL}) for agent runs.")
 
@@ -282,7 +317,9 @@ def main() -> None:
 
     data = DATASET_NAME
     if args.limit:
-        examples = list(client.list_examples(dataset_name=DATASET_NAME, limit=args.limit))
+        examples = list(
+            client.list_examples(dataset_name=DATASET_NAME, limit=args.limit)
+        )
         data = examples
 
     print(f"\nRunning experiment '{args.experiment}' ...")
@@ -302,9 +339,12 @@ def main() -> None:
     )
 
     scores = {
-        "correctness": [], "tool_selection": [],
-        "faithfulness": [], "answer_relevancy": [],
-        "context_precision": [], "context_recall": [],
+        "correctness": [],
+        "tool_selection": [],
+        "faithfulness": [],
+        "answer_relevancy": [],
+        "context_precision": [],
+        "context_recall": [],
     }
     for r in results:
         for fb in (r.get("evaluation_results") or {}).get("results", []):

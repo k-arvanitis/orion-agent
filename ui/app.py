@@ -14,17 +14,16 @@ import time
 import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
+from langchain_core.messages import AIMessage
+
 # Ensure project root is on the path when run from ui/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from dotenv import load_dotenv
-
 load_dotenv()
 
-import streamlit as st
-from langchain_core.messages import AIMessage, ToolMessage
+import streamlit as st  # noqa: E402
 
-from agent.graph import graph
+from agent.graph import graph  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -90,13 +89,19 @@ with st.sidebar:
 
         # RAG chunks
         if trace.get("chunks"):
-            with st.expander(f"Retrieved Chunks ({len(trace['chunks'])})", expanded=True):
+            with st.expander(
+                f"Retrieved Chunks ({len(trace['chunks'])})", expanded=True
+            ):
                 for i, chunk in enumerate(trace["chunks"], 1):
                     st.markdown(f"**{i}. {chunk['heading']}**")
                     st.caption(f"📄 {chunk['source']}")
+                    preview = chunk["content"][:300]
+                    if len(chunk["content"]) > 300:
+                        preview += "..."
                     st.markdown(
-                        f"<div style='font-size:0.85em;color:#555;border-left:3px solid #ddd;"
-                        f"padding-left:8px'>{chunk['content'][:300]}{'...' if len(chunk['content']) > 300 else ''}</div>",
+                        "<div style='font-size:0.85em;color:#555;"
+                        "border-left:3px solid #ddd;padding-left:8px'>"
+                        f"{preview}</div>",
                         unsafe_allow_html=True,
                     )
                     if i < len(trace["chunks"]):
@@ -174,8 +179,12 @@ if prompt := st.chat_input("How can I help you today?"):
 
     trace = {
         "tools": tools_called,
-        "sql": state.values.get("last_sql") if "query_database" in tools_called else None,
-        "chunks": state.values.get("last_chunks") if "search_policies" in tools_called else None,
+        "sql": state.values.get("last_sql")
+        if "query_database" in tools_called
+        else None,
+        "chunks": state.values.get("last_chunks")
+        if "search_policies" in tools_called
+        else None,
         "latency": elapsed,
     }
     st.session_state.traces.append(trace)

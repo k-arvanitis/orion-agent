@@ -18,7 +18,6 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
@@ -105,7 +104,9 @@ def write_output(chunks: list[Chunk], output_path: Path) -> None:
     """Serialise chunks to JSON and write to *output_path*."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = [asdict(c) for c in chunks]
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 # ---------------------------------------------------------------------------

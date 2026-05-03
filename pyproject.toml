@@ -33,5 +33,12 @@ chunker = "ingestion.chunker:main"
 [dependency-groups]
 dev = [
     "pytest",
+    "ruff>=0.15.12",
 ]
 
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

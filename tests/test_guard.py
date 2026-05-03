@@ -13,7 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import importlib.util, pathlib
+import importlib.util
+import pathlib
 
 _spec = importlib.util.spec_from_file_location(
     "guard", pathlib.Path(__file__).parents[1] / "agent" / "guard.py"

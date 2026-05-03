@@ -19,11 +19,11 @@ import logging
 import os
 import textwrap
 
+import sqlparse
 from langchain_core.tools import tool
 from langchain_groq import ChatGroq
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-import sqlparse
 
 from agent.config import AGENT_MODEL
 
@@ -40,12 +40,16 @@ _llm: ChatGroq | None = None
 SCHEMA = textwrap.dedent("""
     orders(order_id, customer_id, order_status, order_purchase_timestamp,
            order_delivered_customer_date, order_estimated_delivery_date)
-    order_items(order_id, product_id, seller_id, price, freight_value, shipping_limit_date)
+    order_items(order_id, product_id, seller_id, price, freight_value,
+                shipping_limit_date)
     customers(customer_id, customer_unique_id, customer_city, customer_state)
-    order_payments(order_id, payment_sequential, payment_type, payment_installments, payment_value)
-    order_reviews(review_id, order_id, review_score, review_comment_message, review_creation_date)
+    order_payments(order_id, payment_sequential, payment_type,
+                   payment_installments, payment_value)
+    order_reviews(review_id, order_id, review_score, review_comment_message,
+                  review_creation_date)
     products(product_id, product_category_name)
-    product_category_name_translation(product_category_name, product_category_name_english)
+    product_category_name_translation(product_category_name,
+                                      product_category_name_english)
     sellers(seller_id, seller_city, seller_state)
 """).strip()
 
@@ -55,7 +59,10 @@ def _get_engine():
     if _engine is None:
         _engine = create_engine(
             os.environ["DATABASE_URL"],
-            connect_args={"connect_timeout": QUERY_TIMEOUT, "options": "-c statement_timeout=5000"},
+            connect_args={
+                "connect_timeout": QUERY_TIMEOUT,
+                "options": "-c statement_timeout=5000",
+            },
         )
     return _engine
 
@@ -68,9 +75,14 @@ def _get_llm() -> ChatGroq:
 
 
 def _generate_sql(question: str, error_context: str = "") -> str:
-    error_hint = f"\n\nPrevious attempt failed with: {error_context}\nFix the query." if error_context else ""
+    error_hint = (
+        f"\n\nPrevious attempt failed with: {error_context}\nFix the query."
+        if error_context
+        else ""
+    )
     prompt = textwrap.dedent(f"""
-        You are a SQL expert. Generate a single PostgreSQL SELECT query to answer the question.
+        You are a SQL expert. Generate a single PostgreSQL SELECT query to
+        answer the question.
 
         Schema:
         {SCHEMA}
@@ -160,13 +172,19 @@ def query_database(question: str) -> str:
             logger.debug("Retry returned %d rows", len(rows))
         except (ValueError, SQLAlchemyError) as retry_err:
             logger.error("SQL retry also failed: %s", retry_err)
-            return json.dumps({
-                "answer": "I was unable to retrieve that information from the database.",
-                "sql": sql,
-            })
+            return json.dumps(
+                {
+                    "answer": (
+                        "I was unable to retrieve that information from the database."
+                    ),
+                    "sql": sql,
+                }
+            )
 
     answer = _interpret(question, rows)
-    return json.dumps({
-        "answer": answer[:MAX_OUTPUT_CHARS],
-        "sql": sql,
-    })
+    return json.dumps(
+        {
+            "answer": answer[:MAX_OUTPUT_CHARS],
+            "sql": sql,
+        }
+    )

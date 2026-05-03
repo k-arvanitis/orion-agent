@@ -56,6 +56,7 @@ _TOOLS_BY_NAME = {
 
 class OrionState(MessagesState):
     """Extends MessagesState with per-session tool trace data."""
+
     last_chunks: NotRequired[list[dict]]
     last_sql: NotRequired[str]
 
@@ -176,7 +177,9 @@ _builder.add_node("tools", tools_node)
 _builder.add_node("guard", guard_node)
 
 _builder.add_edge(START, "agent")
-_builder.add_conditional_edges("agent", should_continue, {"tools": "tools", "guard": "guard"})
+_builder.add_conditional_edges(
+    "agent", should_continue, {"tools": "tools", "guard": "guard"}
+)
 _builder.add_edge("tools", "agent")
 _builder.add_conditional_edges("guard", after_guard, {"agent": "agent", END: END})
 

@@ -54,24 +54,30 @@ def test_select_with_join_passes():
 
 def test_insert_is_rejected():
     import pytest
+
     with pytest.raises(ValueError, match="Only SELECT"):
         _validate_sql("INSERT INTO orders (order_id) VALUES ('abc')")
 
 
 def test_update_is_rejected():
     import pytest
+
     with pytest.raises(ValueError, match="Only SELECT"):
-        _validate_sql("UPDATE orders SET order_status = 'canceled' WHERE order_id = 'abc'")
+        _validate_sql(
+            "UPDATE orders SET order_status = 'canceled' WHERE order_id = 'abc'"
+        )
 
 
 def test_delete_is_rejected():
     import pytest
+
     with pytest.raises(ValueError, match="Only SELECT"):
         _validate_sql("DELETE FROM orders WHERE order_id = 'abc'")
 
 
 def test_empty_query_is_rejected():
     import pytest
+
     with pytest.raises(ValueError):
         _validate_sql("")
 

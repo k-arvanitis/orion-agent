@@ -29,12 +29,12 @@ import re
 import sys
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -43,14 +43,18 @@ DEFAULT_BATCH_SIZE = 1000
 
 # Explicit primary keys per table (composite keys as tuples)
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
-    "customers":                    ("customer_id",),
-    "orders":                       ("order_id",),
-    "order_items":                  ("order_id", "order_item_id"),
-    "order_payments":               ("order_id", "payment_sequential"),
-    "order_reviews":                ("review_id",),
-    "products":                     ("product_id",),
-    "sellers":                      ("seller_id",),
-    "geolocation":                  ("geolocation_zip_code_prefix", "geolocation_lat", "geolocation_lng"),
+    "customers": ("customer_id",),
+    "orders": ("order_id",),
+    "order_items": ("order_id", "order_item_id"),
+    "order_payments": ("order_id", "payment_sequential"),
+    "order_reviews": ("review_id",),
+    "products": ("product_id",),
+    "sellers": ("seller_id",),
+    "geolocation": (
+        "geolocation_zip_code_prefix",
+        "geolocation_lat",
+        "geolocation_lng",
+    ),
     "product_category_translations": ("product_category_name",),
 }
 
@@ -142,7 +146,9 @@ def load_csv(path: Path, conn, batch_size: int) -> None:
     print(f"  {path.name:<50} -> {table}")
 
     raw = pd.read_csv(path, dtype=str)
-    raw.columns = [c.strip().lower().replace(" ", "_").lstrip("\ufeff") for c in raw.columns]
+    raw.columns = [
+        c.strip().lower().replace(" ", "_").lstrip("\ufeff") for c in raw.columns
+    ]
 
     df, pg_types = infer_dataframe(raw)
     df = df.where(pd.notna(df), None)
@@ -163,7 +169,10 @@ def load_csv(path: Path, conn, batch_size: int) -> None:
             pass
         return v.item() if hasattr(v, "item") else v
 
-    rows = [tuple(_to_python(v) for v in row) for row in df.itertuples(index=False, name=None)]
+    rows = [
+        tuple(_to_python(v) for v in row)
+        for row in df.itertuples(index=False, name=None)
+    ]
     total = len(rows)
 
     with conn.cursor() as cur:
@@ -200,7 +209,9 @@ def load_all(data_dir: Path, conn, batch_size: int) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="load_customer_data",
-        description="Load Olist CSV files into Supabase with type inference and upsert.",
+        description=(
+            "Load Olist CSV files into Supabase with type inference and upsert."
+        ),
     )
     parser.add_argument(
         "--data",

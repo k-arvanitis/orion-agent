@@ -26,19 +26,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.tools.escalation_tool import escalate
 
-
 # ---------------------------------------------------------------------------
 # Email validation
 # ---------------------------------------------------------------------------
 
 
 def test_escalate_missing_email_returns_prompt():
-    result = escalate.invoke({"customer_email": "", "issue_summary": "test", "order_id": ""})
+    result = escalate.invoke(
+        {"customer_email": "", "issue_summary": "test", "order_id": ""}
+    )
     assert "email" in result.lower()
 
 
 def test_escalate_invalid_email_returns_prompt():
-    result = escalate.invoke({"customer_email": "notanemail", "issue_summary": "test", "order_id": ""})
+    result = escalate.invoke(
+        {"customer_email": "notanemail", "issue_summary": "test", "order_id": ""}
+    )
     assert "email" in result.lower()
 
 
@@ -54,11 +57,13 @@ def test_escalate_calls_slack_and_gmail(mock_post, mock_gmail):
     mock_service = MagicMock()
     mock_gmail.return_value = mock_service
 
-    result = escalate.invoke({
-        "customer_email": "customer@example.com",
-        "issue_summary": "Package not received after 30 days.",
-        "order_id": "",
-    })
+    result = escalate.invoke(
+        {
+            "customer_email": "customer@example.com",
+            "issue_summary": "Package not received after 30 days.",
+            "order_id": "",
+        }
+    )
 
     assert "customer@example.com" in result
     assert "24 hours" in result
@@ -72,11 +77,13 @@ def test_escalation_confirmation_message_includes_email(mock_post, mock_gmail):
     mock_post.return_value = MagicMock(status_code=200)
     mock_gmail.return_value = MagicMock()
 
-    result = escalate.invoke({
-        "customer_email": "jane@example.com",
-        "issue_summary": "Refund not processed.",
-        "order_id": "",
-    })
+    result = escalate.invoke(
+        {
+            "customer_email": "jane@example.com",
+            "issue_summary": "Refund not processed.",
+            "order_id": "",
+        }
+    )
 
     assert "jane@example.com" in result
 
@@ -86,32 +93,41 @@ def test_escalation_confirmation_message_includes_email(mock_post, mock_gmail):
 # ---------------------------------------------------------------------------
 
 
-@patch("agent.tools.escalation_tool._get_gmail", side_effect=Exception("Gmail auth failed"))
+@patch(
+    "agent.tools.escalation_tool._get_gmail", side_effect=Exception("Gmail auth failed")
+)
 @patch("agent.tools.escalation_tool.requests.post")
 def test_gmail_failure_does_not_crash_escalation(mock_post, mock_gmail):
     mock_post.return_value = MagicMock(status_code=200)
 
     # Should not raise
-    result = escalate.invoke({
-        "customer_email": "user@example.com",
-        "issue_summary": "Wrong item received.",
-        "order_id": "",
-    })
+    result = escalate.invoke(
+        {
+            "customer_email": "user@example.com",
+            "issue_summary": "Wrong item received.",
+            "order_id": "",
+        }
+    )
 
     assert isinstance(result, str)
     mock_post.assert_called_once()  # Slack still fires
 
 
 @patch("agent.tools.escalation_tool._get_gmail")
-@patch("agent.tools.escalation_tool.requests.post", side_effect=Exception("Slack webhook down"))
+@patch(
+    "agent.tools.escalation_tool.requests.post",
+    side_effect=Exception("Slack webhook down"),
+)
 def test_slack_failure_does_not_crash_escalation(mock_post, mock_gmail):
     mock_gmail.return_value = MagicMock()
 
-    result = escalate.invoke({
-        "customer_email": "user@example.com",
-        "issue_summary": "Damaged product.",
-        "order_id": "",
-    })
+    result = escalate.invoke(
+        {
+            "customer_email": "user@example.com",
+            "issue_summary": "Damaged product.",
+            "order_id": "",
+        }
+    )
 
     assert isinstance(result, str)
 
@@ -128,11 +144,13 @@ def test_order_fetch_failure_still_escalates(mock_post, mock_gmail, mock_fetch):
     mock_post.return_value = MagicMock(status_code=200)
     mock_gmail.return_value = MagicMock()
 
-    result = escalate.invoke({
-        "customer_email": "user@example.com",
-        "issue_summary": "Cannot track my order.",
-        "order_id": "some-order-id",
-    })
+    result = escalate.invoke(
+        {
+            "customer_email": "user@example.com",
+            "issue_summary": "Cannot track my order.",
+            "order_id": "some-order-id",
+        }
+    )
 
     assert isinstance(result, str)
     assert "user@example.com" in result
