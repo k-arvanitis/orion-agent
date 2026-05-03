@@ -1,6 +1,3 @@
-<!-- TODO: update GitHub repo description to:
-"E-commerce customer support agent — LangGraph ReAct, hybrid RAG (Qdrant), Text2SQL (Supabase), hallucination guard, 120-case eval. Stack: Groq Llama 4, LangSmith, RAGAS, Docker."
-This must be set manually in the GitHub repo Settings > About section. -->
 [![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -184,6 +181,8 @@ For Gmail escalation, run the one-time OAuth flow:
 ```bash
 uv run --frozen python scripts/auth_gmail.py
 ```
+Gmail access tokens refresh automatically when `token.json` contains a refresh
+token; if that refresh token is revoked or missing, re-run the auth script.
 
 ### Ingest policies into Qdrant
 ```bash
@@ -200,6 +199,23 @@ make run     # CLI agent
 make test    # run all tests
 make eval    # LangSmith evaluation (skips escalation)
 ```
+
+---
+
+## Quality Gates
+
+Ruff is configured in `pyproject.toml`:
+
+```toml
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+```
+
+CI runs `uv run ruff check .` before the test suite.
 
 ---
 
@@ -249,7 +265,7 @@ I want to speak to a real person. My email is customer@example.com.
 
 ## Evaluation
 
-The eval harness runs **120 labeled question-answer pairs** across 6 categories. The dataset was generated using Claude (Anthropic) by providing the real Olist schema and synthetic policy documents as context, then manually reviewed for correctness.
+The eval harness runs **120 labeled question-answer pairs** across 6 categories. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for correctness.
 
 **Dataset breakdown:**
 
@@ -286,7 +302,7 @@ Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_on
 | Context recall     | 0.73  | 64       |
 | Answer relevancy   | 0.75  | 64       |
 
-**Tool selection accuracy (0.90)** is the most meaningful signal: the agent routes to the correct tool 9 out of 10 times with no explicit classifier — routing emerges purely from ReAct reasoning and the system prompt. **Correctness (0.71)** is lower primarily on multi-tool queries where policy context is ambiguous relative to the order data — most failures are on `both`-category questions at the edge of the policy window (e.g. late deliveries where eligibility depends on a calculation across both tools).
+**Tool selection accuracy (0.90)** is the strongest signal: the agent routes to the correct tool 9 out of 10 times with no explicit classifier. **Correctness (0.71)** means the agent is useful but not production-ready: the main failure mode is `both`-category questions where it retrieves policy and order data but does not reliably combine them before answering; next step is a policy+order hybrid prompt that explicitly chains both tool outputs before generation.
 
 ```bash
 uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
@@ -304,7 +320,7 @@ uv run --frozen python eval/run_eval.py --skip-escalation --limit 5
 | **Qdrant unreachable** | `search_policies` catches the exception and returns *"Policy search temporarily unavailable."* SQL still works. |
 | **Ollama not running** | Dense embedding fails; same fallback message. Run `ollama serve` and ensure `nomic-embed-text` is pulled.   |
 | **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
-| **Gmail OAuth expired**| `escalate` logs the error, Slack alert still fires. Re-run `scripts/auth_gmail.py` to refresh `token.json`. |
+| **Gmail OAuth expired**| Access tokens refresh automatically when `token.json` includes a refresh token; if the refresh token is revoked or missing, `escalate` logs the Gmail error, Slack still fires as the monitoring hook, and `scripts/auth_gmail.py` must be re-run manually. |
 | **Slack webhook invalid** | `escalate` logs a warning, Gmail confirmation still sends.                                               |
 | **Hallucination detected** | Guard reinjects a correction prompt and retries the agent once.                                        |
 
