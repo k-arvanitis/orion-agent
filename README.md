@@ -252,18 +252,18 @@ make ingest
 ## Quick Start
 
 ```bash
-make stack   # FastAPI on :8000 + Next.js on :3000 (recommended)
+make stack     # FastAPI on :8000 + Next.js UI on :3000 (recommended)
 # — or run them in separate terminals:
-make api     # FastAPI backend (uvicorn, hot-reload)
-make web     # Next.js dev server
+make api       # FastAPI backend (uvicorn, hot-reload)
+make ui        # Next.js frontend (dev server on :3000)
 
-make run     # CLI agent (no frontend)
-make ui      # Legacy Streamlit UI on :8501
-make test    # run all Python tests
-make eval    # LangSmith evaluation (skips escalation)
+make run       # CLI agent (no frontend)
+make streamlit # Legacy Streamlit UI on :8501
+make test      # run all Python tests
+make eval      # LangSmith evaluation (skips escalation)
 ```
 
-> **Port already in use?** Override with `make api API_PORT=8088` and `make web API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
+> **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
 
 Open `http://localhost:3000` once both are running.
 
@@ -292,13 +292,13 @@ CI runs `uv run ruff check .` before the test suite.
 
 ```bash
 cp .env.example .env       # fill in your keys
-make docker-build          # builds api + web images
-make docker-up             # starts api (8000) + web (3000)
+make docker-build          # builds api + ui images
+make docker-up             # starts api (8000) + ui (3000)
 ```
 
 Then open `http://localhost:3000`.
 
-> **Legacy Streamlit container** is still available behind the `legacy` compose profile: `docker compose --profile legacy up ui`.
+> **Legacy Streamlit container** is still available behind the `legacy` compose profile: `docker compose --profile legacy up streamlit`.
 
 > **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
 

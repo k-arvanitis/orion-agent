@@ -9,7 +9,7 @@ services:
     environment:
       CORS_ORIGINS: http://localhost:3000
 
-  web:
+  ui:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -22,7 +22,7 @@ services:
     depends_on:
       - api
 
-  ui:
+  streamlit:
     profiles: ["legacy"]
     build:
       context: .
