@@ -2,7 +2,7 @@
 Embed and ingest document chunks into Qdrant Cloud with hybrid search support.
 
 Each chunk gets two vectors:
-  - dense:  nomic-embed-text via Ollama (768-dim, semantic similarity)
+  - dense:  fastembed BAAI/bge-small-en-v1.5 (384-dim, semantic similarity)
   - sparse: BM25 via fastembed (variable-dim, keyword matching)
 
 At query time, Qdrant runs both searches independently, then fuses the ranked

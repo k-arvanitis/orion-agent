@@ -12,7 +12,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy source
 COPY . .
 
-EXPOSE 8501
+EXPOSE 8000
 
-CMD ["uv", "run", "--frozen", "streamlit", "run", "ui/app.py", \
-     "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["uv", "run", "--frozen", "uvicorn", "api.main:app", \
+     "--host", "0.0.0.0", "--port", "8000"]
