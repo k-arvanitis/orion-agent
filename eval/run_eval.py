@@ -24,9 +24,9 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
+from langchain_core.embeddings import Embeddings
 from langchain_core.messages import AIMessage
 from langchain_groq import ChatGroq
-from langchain_ollama import OllamaEmbeddings
 from langsmith import Client, evaluate
 from langsmith.schemas import Example, Run
 from ragas.dataset_schema import SingleTurnSample
@@ -45,6 +45,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 load_dotenv()
 
 from agent.config import AGENT_MODEL  # noqa: E402
+from agent.embeddings import dense_embed  # noqa: E402
+
+
+class _LocalEmbeddings(Embeddings):
+    """Thin LangChain Embeddings adapter over agent.embeddings.dense_embed.
+
+    RAGAS calls embed_query / embed_documents on this object; both delegate to
+    the same fastembed encoder used by the RAG tool, so eval-time and
+    runtime-time embeddings stay identical.
+    """
+
+    def embed_query(self, text: str) -> list[float]:
+        return dense_embed(text)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [dense_embed(t) for t in texts]
+
 
 orion_graph = None  # initialised in main()
 
@@ -126,9 +143,7 @@ def run_agent(inputs: dict) -> dict:
 
 _judge = ChatGroq(model=AGENT_MODEL, temperature=0)
 _ragas_llm = LangchainLLMWrapper(ChatGroq(model=AGENT_MODEL, temperature=0))
-_ragas_embeddings = LangchainEmbeddingsWrapper(
-    OllamaEmbeddings(model="nomic-embed-text")
-)
+_ragas_embeddings = LangchainEmbeddingsWrapper(_LocalEmbeddings())
 _faithfulness = Faithfulness(llm=_ragas_llm)
 _answer_relevancy = AnswerRelevancy(llm=_ragas_llm, embeddings=_ragas_embeddings)
 _context_precision = ContextPrecision(llm=_ragas_llm)

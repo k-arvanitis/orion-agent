@@ -2,7 +2,7 @@
 RAG tool — hybrid semantic + keyword search over ShopNova policy documents.
 
 Query flow:
-  1. Embed the query with nomic-embed-text (dense, semantic).
+  1. Embed the query with fastembed BAAI/bge-small-en-v1.5 (dense, semantic).
   2. Encode the query with BM25/fastembed (sparse, keyword).
   3. Run both searches in parallel via Qdrant prefetch.
   4. Fuse results with Reciprocal Rank Fusion (RRF).

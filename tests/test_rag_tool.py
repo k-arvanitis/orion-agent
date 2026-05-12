@@ -1,11 +1,11 @@
 """
 Unit tests for the RAG tool.
 
-External dependencies (Ollama, Qdrant) are fully mocked — no services required.
-Tests cover:
+External dependencies (fastembed dense, Qdrant) are fully mocked — no services
+required. Tests cover:
   - Successful search returns structured JSON with answer and chunks
   - Empty results return the "no results" message
-  - Qdrant/Ollama failures return a user-friendly fallback in the answer field
+  - Qdrant/embedding failures return a user-friendly fallback in the answer field
   - Chunks metadata is included in the structured response
 """
 
@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from qdrant_client.models import SparseVector
 
-_FAKE_DENSE = [0.1] * 768
+_FAKE_DENSE = [0.1] * 384
 _FAKE_SPARSE = SparseVector(indices=[1, 2, 3], values=[0.5, 0.3, 0.2])
 
 
@@ -110,9 +110,9 @@ def test_search_no_results_returns_fallback(mock_qdrant, mock_sparse, mock_dense
 
 @patch(
     "agent.tools.rag_tool._dense_embed",
-    side_effect=ConnectionError("Ollama not running"),
+    side_effect=RuntimeError("dense encoder failed"),
 )
-def test_ollama_failure_returns_user_friendly_message(mock_dense):
+def test_dense_encoder_failure_returns_user_friendly_message(mock_dense):
     from agent.tools.rag_tool import search_policies
 
     data = json.loads(search_policies.invoke({"query": "warranty"}))

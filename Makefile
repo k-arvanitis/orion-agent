@@ -1,18 +1,35 @@
-.PHONY: run ui test eval ingest docker-build docker-up docker-setup help
+.PHONY: run ui api web stack test eval ingest docker-build docker-up help
+
+API_PORT ?= 8000
+WEB_PORT ?= 3000
 
 help:
 	@echo "Available commands:"
 	@echo "  make run          - Start the CLI agent"
-	@echo "  make ui           - Start the Streamlit UI"
-	@echo "  make test         - Run all tests"
+	@echo "  make api          - Start the FastAPI backend (port $(API_PORT))"
+	@echo "  make web          - Start the Next.js frontend (port $(WEB_PORT))"
+	@echo "  make stack        - Start API + web together (foreground; Ctrl-C stops both)"
+	@echo "  make ui           - Start the legacy Streamlit UI (port 8501)"
+	@echo "  make test         - Run all Python tests"
 	@echo "  make eval         - Run LangSmith evaluation (skips escalation)"
 	@echo "  make ingest       - Embed and push policy chunks to Qdrant"
-	@echo "  make docker-build - Build Docker image"
-	@echo "  make docker-up    - Start UI + Ollama with docker compose"
-	@echo "  make docker-setup - Pull nomic-embed-text into the Ollama container"
+	@echo "  make docker-build - Build Docker images (api + web)"
+	@echo "  make docker-up    - Start API + web with docker compose"
 
 run:
 	uv run --frozen python main.py
+
+api:
+	uv run --frozen uvicorn api.main:app --host 0.0.0.0 --port $(API_PORT) --reload
+
+web:
+	cd frontend && NEXT_PUBLIC_API_BASE_URL=http://localhost:$(API_PORT) npm run dev -- -p $(WEB_PORT)
+
+stack:
+	@trap 'kill 0' INT TERM; \
+	$(MAKE) api & \
+	$(MAKE) web & \
+	wait
 
 ui:
 	uv run --frozen streamlit run ui/app.py
@@ -32,6 +49,3 @@ docker-build:
 
 docker-up:
 	docker compose up
-
-docker-setup:
-	docker compose exec ollama ollama pull nomic-embed-text
