@@ -10,6 +10,8 @@
 
 # Orion — AI Customer Support Agent
 
+**AI customer support agent for e-commerce — handles order lookups, policy questions, and human escalation automatically.**
+
 https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
 
 ---
@@ -36,6 +38,8 @@ The right panel in the UI is the LangSmith tool trace — tool selection decisio
 **What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests trigger a single escalation flow: a Slack alert with the full order context goes to the support team, and a confirmation email goes to the customer via Gmail. Both fire independently — if Slack is down, the email still sends. The agent never silently drops a ticket.
 
 Built on a fictional Brazilian e-commerce store (ShopNova) using the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). Policy documents are synthetic (AI-generated) and modelled on real Brazilian e-commerce regulations. Order data is real.
+
+**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to deflect 80% of tickets without adding headcount.
 
 ---
 
@@ -148,29 +152,9 @@ Every agent response passes through a two-step filter before reaching the user:
 
 ## Voice Mode
 
-The Next.js frontend ships with built-in voice mode. A microphone button sits below the chat input — click to start recording (the button turns red and pulses, label becomes "listening…"), click again to stop. The browser uses the native [`MediaRecorder`](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder) API to capture audio, posts it to `/api/transcribe`, and the FastAPI backend forwards the bytes to **Groq Whisper** (`whisper-large-v3-turbo`). The transcribed text is then submitted through the normal `/api/chat` flow — the existing agent processes it identically to a typed message. When the response is complete, the frontend posts the answer text to `/api/tts`, gets back an MP3 from **ElevenLabs** (`eleven_turbo_v2_5`), and autoplays it.
+The browser captures audio with the native `MediaRecorder` API and posts it to `/api/transcribe`, which forwards to **Groq Whisper** (`whisper-large-v3-turbo`). The transcript runs through the same `/api/chat` flow as typed input, then the response is sent to `/api/tts` and autoplayed via **ElevenLabs** (`eleven_turbo_v2_5`). The agent core is unchanged — voice is an I/O wrapper, so all existing eval numbers carry over.
 
-The agent core — RAG, Text2SQL, hallucination guard, escalation, eval — is unchanged. **All existing eval numbers carry over.** Voice is a thin I/O wrapper, not a new reasoning layer:
-
-```
-[mic] ─► MediaRecorder (browser) ─► POST /api/transcribe ─► Whisper (Groq) ─► text
-                                                                                │
-                              ┌─── existing agent graph ───────────────────────┘
-                              ▼
-                         text response ─► POST /api/tts ─► ElevenLabs ─► MP3 ─► <audio autoplay>
-                                       │
-                                       └────────────────► chat (always shown)
-```
-
-**UI behaviour**
-
-- Mic button pulses red and shows "listening…" while recording
-- Transcript is shown in the chat tagged with `🎤` before the agent responds
-- Audio playback auto-triggers only when the originating message was voice; typed turns stay silent
-- Text input remains available alongside voice — both modes work in the same session
-- The browser will request microphone permission once per origin
-
-**Latency target.** End-of-speech to start-of-audio under 4 seconds. Typical breakdown:
+**Latency.** End-of-speech to start-of-audio under 4 seconds. Typical breakdown:
 
 | Stage                     | Time (typical short clip / response) |
 |---------------------------|--------------------------------------|
@@ -179,19 +163,10 @@ The agent core — RAG, Text2SQL, hallucination guard, escalation, eval — is u
 | ElevenLabs (turbo v2.5)   | ~0.3–0.8s                            |
 | **End-to-end**            | **~2–4s**                            |
 
-If end-to-end exceeds 4s, reduce retrieval breadth (lower `PREFETCH_K` / `TOP_K` in `agent/tools/rag_tool.py`) or switch to a cheaper ElevenLabs voice/model.
+**Known limitations**
 
-**Pre-Loom test checklist**
-
-- [ ] Speak the 10 highest-priority eval questions and confirm Whisper transcribes them accurately enough that the agent routes to the same tool the typed version would
-- [ ] Measure end-to-end latency on a short SQL question, a medium RAG question, and a `both`-category question; confirm all three land under 4s
-- [ ] Test one noisy / accented input. If transcription degrades, capture the failure and add it to **Known Limitations** below
-
-**Known limitations (voice)**
-
-- Voice adds two external dependencies to the request path (Groq Whisper + ElevenLabs). A failure in either degrades to text-only without breaking the agent run — Whisper failure surfaces as a banner above the chat and the user can retype; TTS failure shows the text response with a warning banner.
-- Whisper accuracy on heavily accented English or noisy audio has not been measured against the eval set — to be characterised during the pre-Loom test pass.
-- Audio is recorded in the browser via the native `MediaRecorder` API (webm/opus container). The user must grant microphone permission once per origin. iOS Safari only permits autoplay after a user gesture — the in-page Send/mic clicks satisfy this.
+- Voice adds two external dependencies (Groq Whisper + ElevenLabs). A failure in either degrades to text-only without breaking the agent — Whisper failure shows a banner; TTS failure shows the text response with a warning.
+- Whisper accuracy on heavily accented English or noisy audio has not been measured against the eval set.
 
 ---
 
@@ -204,7 +179,7 @@ Each conversation is identified by a `thread_id`. The LangGraph state (`OrionSta
 ## Setup
 
 ### Prerequisites
-- Python 3.11
+- Python 3.11 (pinned in `.python-version` and `pyproject.toml`; the project will likely move to 3.12 for parity with sibling repos)
 - [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 20 + npm (for the Next.js frontend)
 - An ElevenLabs API key (only required for voice mode)
@@ -490,3 +465,14 @@ orion-agent/
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Groq rate limits under eval load** — running the full eval concurrently hits Groq's free-tier rate limit. The `--limit` flag exists for this reason. A paid tier or local vLLM endpoint removes this constraint.
+
+---
+
+## Contact
+
+Built by **Konstantinos Arvanitis** — AI engineer focused on RAG, agentic systems, and production LLM tooling.
+
+- Email: [konstantinos.arvanitis@outlook.com](mailto:konstantinos.arvanitis@outlook.com)
+- GitHub: [@k-arvanitis](https://github.com/k-arvanitis)
+
+Open to freelance and contract work on similar systems — get in touch if you want one built for your business.
