@@ -20,6 +20,8 @@ Usage
 import argparse
 import json
 import sys
+import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -29,6 +31,10 @@ from langchain_core.messages import AIMessage
 from langchain_groq import ChatGroq
 from langsmith import Client, evaluate
 from langsmith.schemas import Example, Run
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="ragas")
+
 from ragas.dataset_schema import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
@@ -44,7 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 load_dotenv()
 
-from agent.config import AGENT_MODEL  # noqa: E402
+from agent.config import AGENT_MODEL, chat_groq_kwargs  # noqa: E402
 from agent.embeddings import dense_embed  # noqa: E402
 
 
@@ -67,6 +73,10 @@ orion_graph = None  # initialised in main()
 
 DATASET_NAME = "orion-eval"
 DATASET_PATH = Path(__file__).parent / "dataset.json"
+
+_counter_lock = threading.Lock()
+_counter = 0
+_total = 0
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +116,14 @@ def upload_dataset(client: Client, skip_escalation: bool) -> None:
 
 def run_agent(inputs: dict) -> dict:
     """Run a single question through the agent and return answer + tools used."""
+    global _counter
+    with _counter_lock:
+        _counter += 1
+        n = _counter
+    question = inputs["question"]
+    print(f"[{n}/{_total}] {question[:90]}", flush=True)
+    t0 = time.monotonic()
+
     thread_id = str(uuid.uuid4())
     result = orion_graph.invoke(
         {"messages": [{"role": "user", "content": inputs["question"]}]},
@@ -134,6 +152,8 @@ def run_agent(inputs: dict) -> dict:
     chunks = result.get("last_chunks", [])
     contexts = [c["content"] for c in chunks] if chunks else []
 
+    elapsed = time.monotonic() - t0
+    print(f"[{n}/{_total}] done in {elapsed:.1f}s — {answer[:80]!r}", flush=True)
     return {"answer": answer, "tools_called": tools_called, "contexts": contexts}
 
 
@@ -141,8 +161,10 @@ def run_agent(inputs: dict) -> dict:
 # Evaluators
 # ---------------------------------------------------------------------------
 
-_judge = ChatGroq(model=AGENT_MODEL, temperature=0)
-_ragas_llm = LangchainLLMWrapper(ChatGroq(model=AGENT_MODEL, temperature=0))
+_judge = ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
+_ragas_llm = LangchainLLMWrapper(
+    ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
+)
 _ragas_embeddings = LangchainEmbeddingsWrapper(_LocalEmbeddings())
 _faithfulness = Faithfulness(llm=_ragas_llm)
 _answer_relevancy = AnswerRelevancy(llm=_ragas_llm, embeddings=_ragas_embeddings)
@@ -193,6 +215,7 @@ def correctness_evaluator(run: Run, example: Example) -> dict:
     expected = example.outputs["expected_answer"]
     actual = (run.outputs or {}).get("answer", "")
 
+    print(f"  scoring correctness: {question[:70]}", flush=True)
     prompt = _CORRECTNESS_PROMPT.format(
         question=question, expected=expected, actual=actual
     )
@@ -225,6 +248,7 @@ def faithfulness_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "faithfulness", "score": None}
+    print(f"  scoring faithfulness: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "faithfulness",
@@ -238,6 +262,7 @@ def answer_relevancy_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "answer_relevancy", "score": None}
+    print(f"  scoring answer_relevancy: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "answer_relevancy",
@@ -251,6 +276,7 @@ def context_precision_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "context_precision", "score": None}
+    print(f"  scoring context_precision: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "context_precision",
@@ -264,6 +290,7 @@ def context_recall_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "context_recall", "score": None}
+    print(f"  scoring context_recall: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "context_recall",
@@ -330,14 +357,20 @@ def main() -> None:
 
     upload_dataset(client, skip_escalation=args.skip_escalation)
 
+    global _total, _counter
+    _counter = 0
+
     data = DATASET_NAME
     if args.limit:
         examples = list(
             client.list_examples(dataset_name=DATASET_NAME, limit=args.limit)
         )
         data = examples
+        _total = len(examples)
+    else:
+        _total = sum(1 for _ in client.list_examples(dataset_name=DATASET_NAME))
 
-    print(f"\nRunning experiment '{args.experiment}' ...")
+    print(f"\nRunning experiment '{args.experiment}' — {_total} examples ...")
     results = evaluate(
         run_agent,
         data=data,
