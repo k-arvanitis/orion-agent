@@ -88,8 +88,8 @@ def tools_node(state: OrionState) -> dict:
     """
     last = state["messages"][-1]
     tool_messages = []
-    last_chunks: list[dict] = []
-    last_sql: str = ""
+    last_chunks: list[dict] = state.get("last_chunks", [])
+    last_sql: str = state.get("last_sql", "")
 
     for tool_call in last.tool_calls:
         tool_fn = _TOOLS_BY_NAME[tool_call["name"]]

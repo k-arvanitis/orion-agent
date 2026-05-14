@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 _qdrant_client: QdrantClient | None = None
 
-TOP_K = 4
+TOP_K = 6
 PREFETCH_K = 20
 MAX_CHUNK_CHARS = 600
 
