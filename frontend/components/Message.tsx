@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 import type { Message as MessageT } from "@/lib/types";
+
+import AudioPlayer from "./AudioPlayer";
 
 type Props = {
   msg: MessageT;
@@ -11,16 +11,6 @@ type Props = {
 
 export default function Message({ msg, autoplayAudio }: Props) {
   const isUser = msg.role === "user";
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    if (autoplayAudio && audioRef.current) {
-      audioRef.current.play().catch(() => {
-        /* autoplay may be blocked — user can click play on the controls */
-      });
-    }
-  }, [autoplayAudio, msg.audioUrl]);
-
   const isLoading = !isUser && msg.content === "" && !msg.audioUrl;
 
   return (
@@ -48,12 +38,7 @@ export default function Message({ msg, autoplayAudio }: Props) {
           <span>{msg.content}</span>
         )}
         {!isUser && msg.audioUrl && (
-          <audio
-            ref={audioRef}
-            src={msg.audioUrl}
-            controls
-            className="mt-2 w-full"
-          />
+          <AudioPlayer src={msg.audioUrl} autoplay={autoplayAudio} />
         )}
       </div>
       <div className="mt-0.5 px-1 text-[11px] text-ink-400">
