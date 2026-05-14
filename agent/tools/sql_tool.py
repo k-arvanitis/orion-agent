@@ -25,7 +25,7 @@ from langchain_groq import ChatGroq
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from agent.config import AGENT_MODEL
+from agent.config import AGENT_MODEL, chat_groq_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def _get_engine():
 def _get_llm() -> ChatGroq:
     global _llm
     if _llm is None:
-        _llm = ChatGroq(model=AGENT_MODEL, temperature=0)
+        _llm = ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
     return _llm
 
 

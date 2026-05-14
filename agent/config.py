@@ -12,8 +12,20 @@ import os
 # ---------------------------------------------------------------------------
 
 # Groq model used for the agent and eval judge.
-# Override with: AGENT_MODEL=meta-llama/llama-4-maverick-17b-128e-instruct
-AGENT_MODEL: str = os.getenv("AGENT_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+# Override with: AGENT_MODEL=openai/gpt-oss-120b
+AGENT_MODEL: str = os.getenv("AGENT_MODEL", "qwen/qwen3-32b")
+
+# Reasoning models on Groq (Qwen 3, gpt-oss) emit <think>...</think> blocks
+# unless reasoning_format is set. Non-reasoning models reject the parameter,
+# so it must only be passed when applicable.
+_REASONING_MODEL_PREFIXES = ("qwen/qwen", "openai/gpt-oss")
+
+
+def chat_groq_kwargs() -> dict:
+    """Return extra ChatGroq kwargs required for the configured AGENT_MODEL."""
+    if any(AGENT_MODEL.startswith(p) for p in _REASONING_MODEL_PREFIXES):
+        return {"reasoning_format": "hidden"}
+    return {}
 
 # ---------------------------------------------------------------------------
 # Embeddings

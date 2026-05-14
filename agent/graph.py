@@ -26,20 +26,20 @@ import json
 import logging
 from typing import NotRequired
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
 
 from agent import guard
-from agent.config import AGENT_MODEL
+from agent.config import AGENT_MODEL, chat_groq_kwargs
 from agent.prompts import SYSTEM_PROMPT
 from agent.tools import escalate, query_database, search_policies
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatGroq(model=AGENT_MODEL, temperature=0, max_tokens=2048)
+_llm = ChatGroq(model=AGENT_MODEL, temperature=0, max_tokens=2048, **chat_groq_kwargs())
 _llm_with_tools = _llm.bind_tools([search_policies, query_database, escalate])
 
 _TOOLS_BY_NAME = {
@@ -121,30 +121,14 @@ def tools_node(state: OrionState) -> dict:
 
 
 def guard_node(state: OrionState) -> dict:
-    messages = state["messages"]
-    last = messages[-1]
-
+    last = state["messages"][-1]
     if not isinstance(last, AIMessage) or not isinstance(last.content, str):
         return {}
-
-    tool_output = " ".join(
-        m.content for m in messages if isinstance(m, ToolMessage) and m.content
-    )
-
-    result = guard.apply(last.content, tool_output)
-
-    if result.clean:
-        if result.text != last.content:
-            logger.debug("Guard stripped PII from response")
-            return {"messages": [AIMessage(content=result.text, id=last.id)]}
-        return {}
-
-    logger.warning("Guard detected hallucinated numbers: %s", result.hallucinated)
-    correction = (
-        f"Your previous response contained numbers not found in the tool output: "
-        f"{result.hallucinated}. Rewrite using only data from the tool results."
-    )
-    return {"messages": [HumanMessage(content=correction)]}
+    result = guard.apply(last.content)
+    if result.text != last.content:
+        logger.debug("Guard stripped PII from response")
+        return {"messages": [AIMessage(content=result.text, id=last.id)]}
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -157,13 +141,6 @@ def should_continue(state: OrionState) -> str:
     if isinstance(last, AIMessage) and last.tool_calls:
         return "tools"
     return "guard"
-
-
-def after_guard(state: OrionState) -> str:
-    last = state["messages"][-1]
-    if isinstance(last, HumanMessage) and "Rewrite using only data" in last.content:
-        return "agent"
-    return END
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +158,6 @@ _builder.add_conditional_edges(
     "agent", should_continue, {"tools": "tools", "guard": "guard"}
 )
 _builder.add_edge("tools", "agent")
-_builder.add_conditional_edges("guard", after_guard, {"agent": "agent", END: END})
+_builder.add_edge("guard", END)
 
 graph = _builder.compile(checkpointer=MemorySaver())

@@ -45,14 +45,6 @@ export default function TraceSidebar({
           }
         >
           <div className="space-y-3">
-            {trace.guard_fired && (
-              <div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-                <strong>Hallucination guard triggered.</strong> The first
-                answer contained numbers not present in the tool output; the
-                agent was re-prompted and the corrected reply is shown.
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <div className="text-[11px] font-medium text-ink-600">
                 Tools used
