@@ -43,8 +43,8 @@ GUARD_CORRECTION_MARKER = "Rewrite using only data"
 
 app = FastAPI(title="Orion Agent API", version="0.1.0")
 
-# CORS — Next.js dev server defaults to :3000. Override via env for prod.
-_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# CORS — Next.js dev server on :3500; API on :8088. Override via env for prod.
+_origins = os.getenv("CORS_ORIGINS", "http://localhost:3500").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins if o.strip()],
@@ -163,7 +163,9 @@ _MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB — Groq Whisper hard cap
 
 @app.post("/api/transcribe", response_model=TranscribeResponse)
 async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
-    if file.content_type and file.content_type not in _ALLOWED_AUDIO_MIME:
+    # Browsers send "audio/webm;codecs=opus" — strip parameters before checking.
+    base_mime = (file.content_type or "").split(";", 1)[0].strip().lower()
+    if base_mime and base_mime not in _ALLOWED_AUDIO_MIME:
         raise HTTPException(
             status_code=415,
             detail=f"Unsupported audio mime type: {file.content_type}",

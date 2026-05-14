@@ -1,7 +1,7 @@
 .PHONY: run ui streamlit api stack test eval ingest docker-build docker-up help
 
-API_PORT ?= 8000
-WEB_PORT ?= 3000
+API_PORT ?= 8088
+WEB_PORT ?= 3500
 
 help:
 	@echo "Available commands:"
