@@ -1,3 +1,11 @@
+# Orion — AI Customer Support Agent
+
+**Orion deflects ~80% of e-commerce support tickets automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed. No headcount increase required.
+
+Built for e-commerce businesses handling repetitive support volume. Handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop.
+
+**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to deflect 80% of tickets without adding headcount.
+
 [![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -5,12 +13,8 @@
 ![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
 ![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logoColor=white)
-![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?style=for-the-badge&logoColor=white)
+![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?style=for-the-badge&logo=qdrant&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
-
-# Orion — AI Customer Support Agent
-
-**AI customer support agent for e-commerce — handles order lookups, policy questions, and human escalation automatically.**
 
 https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
 
@@ -19,6 +23,13 @@ https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
 ## Demo
 
 The recording above covers four query types:
+
+<!-- SCREENSHOTS: Add 3 screenshots here after recording -->
+<!-- Screenshot 1: Multi-tool answer with trace panel open (RAG + SQL query) -->
+<!-- Screenshot 2: Escalation confirmation in chat UI -->
+<!-- Screenshot 3: Voice mode mic button (optional) -->
+
+🎬 **[Watch the full demo on Loom](#)** ← replace `#` with Loom URL
 
 | Timestamp | Query type | What it demonstrates |
 |---|---|---|
@@ -39,13 +50,11 @@ The right panel in the UI is the LangSmith tool trace — tool selection decisio
 
 Built on a fictional Brazilian e-commerce store (ShopNova) using the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). Policy documents are synthetic (AI-generated) and modelled on real Brazilian e-commerce regulations. Order data is real.
 
-**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to deflect 80% of tickets without adding headcount.
-
 ---
 
 ## Tracing
 
-Every agent run is traced in LangSmith — tool decisions, latency, token usage, and guard checks.
+Every agent run is traced in LangSmith — tool decisions, latency, and token usage.
 
 ![LangSmith trace](assets/langsmith-trace.png)
 
@@ -76,7 +85,7 @@ Every agent run is traced in LangSmith — tool decisions, latency, token usage,
                               │  └──────────────┘  └──────────────┘  └────────────┘  │
                               │                                                       │
                               │  ┌────────────────────────────────────────────────┐   │
-                              │  │  Guard Layer (PII strip + hallucination check) │   │
+                              │  │  Guard Layer (PII strip)                       │   │
                               │  └────────────────────────────────────────────────┘   │
                               └──────────────────────────────────────────────────────┘
 ```
@@ -89,7 +98,7 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 
 **Structured tool isolation** — tools return `{"answer": ..., "chunks/sql": ...}`. The agent receives only the `answer` field; raw source data is stored in `OrionState` for the UI trace panel. Prevents the LLM from reasoning about schema internals mid-conversation.
 
-**Numerical hallucination guard with retry** — every number in the final response is cross-checked against raw tool output. On mismatch, the agent is re-prompted once with the flagged discrepancy explicitly stated. If the retry also fails, the cleaned response is returned rather than a hallucinated one.
+**PII guard before every response** — every final response passes through a regex filter that silently strips Brazilian CPF numbers and phone numbers before the text reaches the user. The filter runs after the ReAct loop completes and does not affect tool execution.
 
 **Hybrid retrieval over pure semantic search** — policy documents contain exact terms ("30-day return window", "Boleto", "CPF") that dense-only search misses under paraphrase. BM25 handles keyword precision; the dense model handles intent. Both run in parallel via Qdrant prefetch and are fused with RRF — no learned weighting required.
 
@@ -104,18 +113,18 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 | Component          | Technology                                                              | Why |
 |--------------------|-------------------------------------------------------------------------|-----|
 | Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Stateful graph with explicit node/edge routing; per-thread OrionState allows session isolation without external state management |
-| LLM                | Groq — Llama 4 Scout 17B (`meta-llama/llama-4-scout-17b-16e-instruct`)  | Fast inference via Groq; OpenAI-compatible API allows swapping models via env var without code changes; Llama 4 Scout handles tool use reliably at this scale |
+| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Fast inference via Groq; OpenAI-compatible API allows swapping models via env var without code changes; Qwen 3 handles structured tool use reliably and is fully Apache 2.0 |
 | RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Qdrant Cloud: no local infra to manage; native hybrid search (dense + sparse) with RRF fusion in a single query; better retrieval quality than pgvector for this use case |
 | Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Pure Python via ONNX Runtime — no daemon, no API call, no key, no quota. Model file (~133 MB) downloads into the venv on first use; subsequent embeds are ~2 ms |
 | Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | BM25 catches exact keyword matches (order IDs, policy terms like "Boleto", "CPF") that semantic search misses |
 | Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Supabase: managed Postgres with no infra overhead; SQLAlchemy for type-safe query execution |
-| Text2SQL           | Llama 4 Scout + sqlparse validation + SQLAlchemy execution              | Schema-aware prompt + SELECT-only validation via sqlparse + one retry on failure — three layers of safety before a query reaches the DB |
+| Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Schema-aware prompt + SELECT-only validation via sqlparse + one retry on failure — three layers of safety before a query reaches the DB |
 | Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Gmail OAuth2 + Slack webhooks are independent — one failing does not block the other |
-| Observability      | LangSmith — traces every agent run                                      | LangSmith traces every agent run: tool decisions, latency, token usage, guard checks — queryable after the fact |
+| Observability      | LangSmith — traces every agent run                                      | LangSmith traces every agent run: tool decisions, latency, token usage — queryable after the fact |
 | Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | RAGAS for retrieval quality + LLM-as-judge for answer correctness + exact match for tool selection — three complementary signals |
 | Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Looks like a real product, not a Streamlit demo. Streams tokens via fetch + ReadableStream; voice via the browser MediaRecorder API |
 | Backend            | FastAPI + uvicorn — `/api/chat` (streamed NDJSON), `/api/transcribe`, `/api/tts` | Thin wrapper around the LangGraph agent; clean HTTP boundary so the same agent could front a Slack bot, mobile app, or CLI |
-| UI (legacy)        | Streamlit — same functionality, single-file fallback                    | Kept in `ui/app.py` as a quick local-dev option; the Next.js + FastAPI stack is the primary surface |
+| UI (legacy)        | Streamlit                                                               | Single-file fallback for local dev. `ui/app.py`. Not the primary surface. |
 
 ---
 
@@ -131,7 +140,7 @@ Returns `{"answer": "<formatted chunks>", "chunks": [{"source", "heading", "cont
 
 ### `query_database` — Text2SQL over order data
 
-Sends the question + full schema context to Llama 4 Scout, which generates a PostgreSQL SELECT query. The query is validated by **sqlparse** (SELECT-only whitelist) before execution. On failure, the error is fed back to the LLM for one retry. Results are interpreted back into natural language by the same LLM.
+Sends the question + full schema context to Qwen 3 32B, which generates a PostgreSQL SELECT query. The query is validated by **sqlparse** (SELECT-only whitelist) before execution. On failure, the error is fed back to the LLM for one retry. Results are interpreted back into natural language by the same LLM.
 
 Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
@@ -143,10 +152,9 @@ Triggered when the agent cannot resolve an issue or the customer asks for a huma
 
 ## Guard Layer
 
-Every agent response passes through a two-step filter before reaching the user:
+Every agent response passes through a PII filter before reaching the user:
 
-1. **PII stripping** — regex removes Brazilian CPF numbers (`\b\d{3}\.\d{3}\.\d{3}-\d{2}\b`) and phone numbers (`\(\d{2}\)\s*\d{4,5}-\d{4}`) silently.
-2. **Hallucination check** — every number in the response is extracted and cross-checked against the raw tool output. Any number not present in the source is flagged, and the agent is re-prompted with a correction message. If the retry also fails, the cleaned (but incomplete) response is returned.
+**PII stripping** — regex removes Brazilian CPF numbers (`\b\d{3}\.\d{3}\.\d{3}-\d{2}\b`) and phone numbers (`\(\d{2}\)\s*\d{4,5}-\d{4}`) silently.
 
 ---
 
@@ -159,7 +167,7 @@ The browser captures audio with the native `MediaRecorder` API and posts it to `
 | Stage                     | Time (typical short clip / response) |
 |---------------------------|--------------------------------------|
 | Whisper (Groq, turbo)     | ~0.5–1.0s                            |
-| Agent (Groq, Llama 4)     | ~1.0–2.5s                            |
+| Agent (Groq, Qwen 3)      | ~1.0–2.5s                            |
 | ElevenLabs (turbo v2.5)   | ~0.3–0.8s                            |
 | **End-to-end**            | **~2–4s**                            |
 
@@ -179,7 +187,7 @@ Each conversation is identified by a `thread_id`. The LangGraph state (`OrionSta
 ## Setup
 
 ### Prerequisites
-- Python 3.11 (pinned in `.python-version` and `pyproject.toml`; the project will likely move to 3.12 for parity with sibling repos)
+- Python 3.11 (pinned in `.python-version` and `pyproject.toml`)
 - [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 20 + npm (for the Next.js frontend)
 - An ElevenLabs API key (only required for voice mode)
@@ -233,14 +241,14 @@ make api       # FastAPI backend (uvicorn, hot-reload)
 make ui        # Next.js frontend (dev server on :3000)
 
 make run       # CLI agent (no frontend)
-make streamlit # Legacy Streamlit UI on :8501
+make streamlit # Legacy Streamlit UI on :8501 (fallback only)
 make test      # run all Python tests
 make eval      # LangSmith evaluation (skips escalation)
 ```
 
 > **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
 
-Open `http://localhost:3000` once both are running.
+Open `http://localhost:3500` once both are running.
 
 ---
 
@@ -273,7 +281,7 @@ make docker-up             # starts api (8000) + ui (3000)
 
 Then open `http://localhost:3000`.
 
-> **Legacy Streamlit container** is still available behind the `legacy` compose profile: `docker compose --profile legacy up streamlit`.
+> **Legacy Streamlit** is available via `docker compose --profile legacy up streamlit`.
 
 > **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
 
@@ -327,32 +335,31 @@ Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_on
 
 | Metric             | Method                                                              | Applies to |
 |--------------------|---------------------------------------------------------------------|------------|
-| Correctness        | LLM-as-judge (Llama 4 Scout) — scores 0–1 against expected answer  | All        |
+| Correctness        | LLM-as-judge (Qwen 3 32B) — scores 0–1 against expected answer     | All        |
 | Tool selection     | Exact match against expected tool set                               | All        |
 | Faithfulness       | RAGAS — is the answer grounded in retrieved chunks?                 | RAG rows   |
 | Answer relevancy   | RAGAS — does the answer address the question?                       | RAG rows   |
 | Context precision  | RAGAS — are retrieved chunks relevant?                              | RAG rows   |
 | Context recall     | RAGAS — were all relevant chunks retrieved?                         | RAG rows   |
 
-**Reading correctness 0.71.** A correctness score of 0.71 means that, averaged over 111 questions, the agent's answer is roughly three-quarters of the way to the labelled expected answer (full marks for an exact match, partial credit for the right facts in the wrong shape, zero for a wrong or hallucinated answer). It is useful — most answers land — but it is not yet production-ready. The dominant failure mode is the `both` category: the agent retrieves the right policy chunks *and* the right order rows but does not reliably combine them in a single answer ("your order arrived 3 days late, but our policy only covers refunds for delays over 7 days" becomes one of the two halves). The next step is a policy+order chaining prompt that forces the model to state both facts before drawing a conclusion, plus a focused mini-eval on the `both` subset to confirm the lift before re-running the full suite.
+**Reading correctness 0.80.** A correctness score of 0.80 means that, averaged over 111 questions, the agent's answer is roughly four-fifths of the way to the labelled expected answer (full marks for an exact match, partial credit for the right facts in the wrong shape, zero for a wrong or hallucinated answer). It is useful — most answers land — but scores are not yet high enough for unsupervised deployment. The dominant failure mode is the `both` category: the agent retrieves the right policy chunks *and* the right order rows but does not reliably combine them in a single answer ("your order arrived 3 days late, but our policy only covers refunds for delays over 7 days" becomes one of the two halves). The next step is a policy+order chaining prompt that forces the model to state both facts before drawing a conclusion, plus a focused mini-eval on the `both` subset to confirm the lift before re-running the full suite.
 
-**Results (orion-v1, 111 examples):**
+**Results (orion-v3, 111 examples):**
 
 | Metric             | Score | Examples |
 |--------------------|-------|----------|
-| Correctness        | 0.71  | 111      |
-| Tool selection     | 0.90  | 111      |
-| Faithfulness       | 0.76  | 64       |
-| Context precision  | 0.75  | 64       |
-| Context recall     | 0.73  | 64       |
-| Answer relevancy   | 0.75  | 64       |
+| Correctness        | 0.80  | 111      |
+| Tool selection     | 0.99  | 111      |
+| Faithfulness       | 0.67  | 59       |
+| Context precision  | 0.80  | 73       |
+| Context recall     | 0.74  | 73       |
 
 > **Note on sample size:** the full dataset is 120 examples, but escalation cases (4) and any unscored rows are skipped during eval — escalation would fire real Slack/Gmail traffic, so it is excluded by `--skip-escalation`. Scored: **111 / 120**.
 
-**Tool selection accuracy (0.90)** is the strongest signal: the agent routes to the correct tool 9 out of 10 times with no explicit classifier.
+**Tool selection accuracy (0.99)** is the strongest signal: the agent routes to the correct tool virtually every time with no explicit classifier.
 
 ```bash
-uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
+uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v3
 # smoke test
 uv run --frozen python eval/run_eval.py --skip-escalation --limit 5
 ```
@@ -369,7 +376,7 @@ uv run --frozen python eval/run_eval.py --skip-escalation --limit 5
 | **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
 | **Gmail OAuth expired**| Access tokens refresh automatically when `token.json` includes a refresh token; if the refresh token is revoked or missing, `escalate` logs the Gmail error, Slack still fires as the monitoring hook, and `scripts/auth_gmail.py` must be re-run manually. |
 | **Slack webhook invalid** | `escalate` logs a warning, Gmail confirmation still sends.                                               |
-| **Hallucination detected** | Guard reinjects a correction prompt and retries the agent once.                                        |
+| **PII in response**        | Guard strips CPF and phone numbers silently before the response reaches the user.                      |
 
 ---
 
@@ -383,8 +390,8 @@ make test
 
 | File                       | What it tests                                                          |
 |----------------------------|------------------------------------------------------------------------|
-| `test_guard.py`            | PII stripping (CPF, phone), hallucination detection, GuardResult flags |
-| `test_routing.py`          | `should_continue` and `after_guard` routing logic                      |
+| `test_guard.py`            | PII stripping (CPF, phone), GuardResult flags                          |
+| `test_routing.py`          | `should_continue` routing logic                                        |
 | `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
 | `test_rag_tool.py`         | Structured JSON response, chunk metadata, Qdrant / dense-encoder failure fallbacks |
 | `test_escalation_tool.py`  | Email validation, Slack/Gmail calls, partial failure resilience        |
@@ -401,7 +408,7 @@ orion-agent/
 │   ├── config.py             # Centralised config — all model names and defaults
 │   ├── embeddings.py         # fastembed BGE dense + fastembed BM25 sparse
 │   ├── graph.py              # LangGraph ReAct agent with OrionState
-│   ├── guard.py              # PII filter + hallucination check
+│   ├── guard.py              # PII filter (CPF, phone)
 │   ├── prompts.py            # System prompt with tool reasoning examples
 │   ├── voice.py              # Voice I/O: Groq Whisper + ElevenLabs (UI only)
 │   └── tools/
@@ -460,19 +467,22 @@ orion-agent/
 
 ## Known Limitations
 
-- **Hallucination guard is numerical only** — the guard catches numeric mismatches (prices, dates, order IDs) but does not detect semantic hallucinations such as misinterpreted policy rules.
+- **No hallucination guard** — the guard layer strips PII only. Numeric hallucinations (fabricated prices, dates) are not cross-checked. Qwen 3 32B is reliable in practice, but a production deployment should add a verification step against raw tool output.
 - **In-memory thread state** — `OrionState` is not persisted. A service restart clears all conversation history. For production use, LangGraph's checkpointer interface would need to be wired to a durable store (e.g. Redis or Postgres).
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Groq rate limits under eval load** — running the full eval concurrently hits Groq's free-tier rate limit. The `--limit` flag exists for this reason. A paid tier or local vLLM endpoint removes this constraint.
+- **Gmail OAuth2 is demo-scoped** — the one-time OAuth flow and `token.json` file are appropriate for a portfolio demo. A production deployment would use a service account or a dedicated transactional email provider (e.g. SendGrid).
 
 ---
 
-## Contact
+## About the Author
 
-Built by **Konstantinos Arvanitis** — AI engineer focused on RAG, agentic systems, and production LLM tooling.
+Junior AI engineer specialising in LangGraph agents and RAG systems for SMBs.
 
-- Email: [konstantinos.arvanitis@outlook.com](mailto:konstantinos.arvanitis@outlook.com)
-- GitHub: [@k-arvanitis](https://github.com/k-arvanitis)
+- Upwork: https://www.upwork.com/freelancers/~01dffea4a9afbdc9f6
+- GitHub: https://github.com/k-arvanitis
+- LinkedIn: https://www.linkedin.com/in/konstantinos-arvanitis-0248b3246/
+- Email: konstantinos.arvanitis@outlook.com
 
 Open to freelance and contract work on similar systems — get in touch if you want one built for your business.
