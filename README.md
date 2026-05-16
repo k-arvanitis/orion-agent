@@ -235,10 +235,10 @@ make ingest
 ## Quick Start
 
 ```bash
-make stack     # FastAPI on :8000 + Next.js UI on :3000 (recommended)
+make stack     # FastAPI on :8088 + Next.js UI on :3500 (recommended)
 # — or run them in separate terminals:
-make api       # FastAPI backend (uvicorn, hot-reload)
-make ui        # Next.js frontend (dev server on :3000)
+make api       # FastAPI backend (uvicorn, hot-reload on :8088)
+make ui        # Next.js frontend (dev server on :3500)
 
 make run       # CLI agent (no frontend)
 make streamlit # Legacy Streamlit UI on :8501 (fallback only)
@@ -271,15 +271,15 @@ CI runs `uv run ruff check .` before the test suite.
 
 ## Docker
 
-`docker-compose.yml` brings up two services: the FastAPI backend on `:8000` and the Next.js frontend on `:3000`. External services (Qdrant Cloud, Supabase, Groq, Slack, Gmail, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
+`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (Qdrant Cloud, Supabase, Groq, Slack, Gmail, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
 
 ```bash
 cp .env.example .env       # fill in your keys
 make docker-build          # builds api + ui images
-make docker-up             # starts api (8000) + ui (3000)
+make docker-up             # starts api (8088) + ui (3500)
 ```
 
-Then open `http://localhost:3000`.
+Then open `http://localhost:3500`.
 
 > **Legacy Streamlit** is available via `docker compose --profile legacy up streamlit`.
 
