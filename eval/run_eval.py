@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 import uuid
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -31,14 +32,13 @@ from langchain_core.messages import AIMessage
 from langchain_groq import ChatGroq
 from langsmith import Client, evaluate
 from langsmith.schemas import Example, Run
-import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="ragas")
 
-from ragas.dataset_schema import SingleTurnSample
-from ragas.embeddings import LangchainEmbeddingsWrapper
-from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import (
+from ragas.dataset_schema import SingleTurnSample  # noqa: E402
+from ragas.embeddings import LangchainEmbeddingsWrapper  # noqa: E402
+from ragas.llms import LangchainLLMWrapper  # noqa: E402
+from ragas.metrics import (  # noqa: E402
     AnswerRelevancy,
     ContextPrecision,
     ContextRecall,
