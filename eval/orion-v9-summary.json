@@ -1,0 +1,12 @@
+{
+  "experiment": "orion-v9",
+  "n": 116,
+  "correctness": 0.8664,
+  "correctness_n": 116,
+  "tool_selection": 0.9279,
+  "tool_selection_n": 111,
+  "faithfulness": 0.9659,
+  "faithfulness_n": 44,
+  "answer_relevancy": 0.94,
+  "answer_relevancy_n": 75
+}

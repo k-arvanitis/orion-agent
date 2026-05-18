@@ -23,6 +23,12 @@ data/output/
 # Misc artefacts
 chunks.json
 
+# Eval run outputs — only the current results are tracked
+eval/*.json
+eval/*.log
+eval.log
+nohup.out
+
 # Conversation memory (SQLite, generated at runtime)
 data/memory.db
 
