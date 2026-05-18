@@ -24,14 +24,6 @@ Built for e-commerce businesses handling repetitive support volume. Handles orde
 
 ![Chat UI with LangSmith trace panel](assets/chat-ui.png)
 
-| Timestamp | Query type | What it demonstrates |
-|---|---|---|
-| 0:00 – 0:20 | Policy (RAG only) | Agent retrieves return policy chunk from Qdrant, cites source heading in the trace panel |
-| 0:21 – 0:50 | Order lookup (SQL only) | Text2SQL generates a validated SELECT, executes against Supabase, returns structured result |
-| 0:51 – 1:20 | Multi-tool | Agent calls both tools in sequence — trace panel shows tool call order, retrieved chunks, and the SQL that ran |
-| 1:21 – 1:40 | Escalation | Slack alert and Gmail confirmation fire independently — both tool calls visible in the trace |
-
-The right panel in the UI is the LangSmith tool trace — tool selection decisions, latency per step, and retrieved chunks are visible in real time alongside the streamed response.
 
 ---
 
