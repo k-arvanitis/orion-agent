@@ -18,7 +18,6 @@ Usage
 """
 
 import argparse
-import concurrent.futures
 import json
 import sys
 import threading
@@ -222,23 +221,6 @@ SCORED_TOOL_CATEGORIES = {
 }
 
 
-_RAGAS_TIMEOUT = 60  # seconds per metric call before giving up
-
-
-def _ragas_score(metric, sample) -> float | None:
-    """Run a RAGAS metric with a timeout; return None if it hangs or errors."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(metric.single_turn_score, sample)
-        try:
-            return float(future.result(timeout=_RAGAS_TIMEOUT))
-        except concurrent.futures.TimeoutError:
-            print(f"  [timeout] {metric.__class__.__name__} exceeded {_RAGAS_TIMEOUT}s — skipping", flush=True)
-            future.cancel()
-            return None
-        except Exception:
-            return None
-
-
 def correctness_evaluator(run: Run, example: Example) -> dict:
     question = example.inputs["question"]
     expected = example.outputs["expected_answer"]
@@ -278,7 +260,13 @@ def faithfulness_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "faithfulness", "score": None}
     print(f"  scoring faithfulness: {example.inputs['question'][:70]}", flush=True)
-    return {"key": "faithfulness", "score": _ragas_score(_faithfulness, sample)}
+    try:
+        return {
+            "key": "faithfulness",
+            "score": float(_faithfulness.single_turn_score(sample)),
+        }
+    except Exception:
+        return {"key": "faithfulness", "score": None}
 
 
 def answer_relevancy_evaluator(run: Run, example: Example) -> dict:
@@ -286,7 +274,13 @@ def answer_relevancy_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "answer_relevancy", "score": None}
     print(f"  scoring answer_relevancy: {example.inputs['question'][:70]}", flush=True)
-    return {"key": "answer_relevancy", "score": _ragas_score(_answer_relevancy, sample)}
+    try:
+        return {
+            "key": "answer_relevancy",
+            "score": float(_answer_relevancy.single_turn_score(sample)),
+        }
+    except Exception:
+        return {"key": "answer_relevancy", "score": None}
 
 
 def context_precision_evaluator(run: Run, example: Example) -> dict:
@@ -294,7 +288,13 @@ def context_precision_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "context_precision", "score": None}
     print(f"  scoring context_precision: {example.inputs['question'][:70]}", flush=True)
-    return {"key": "context_precision", "score": _ragas_score(_context_precision, sample)}
+    try:
+        return {
+            "key": "context_precision",
+            "score": float(_context_precision.single_turn_score(sample)),
+        }
+    except Exception:
+        return {"key": "context_precision", "score": None}
 
 
 def context_recall_evaluator(run: Run, example: Example) -> dict:
@@ -302,7 +302,13 @@ def context_recall_evaluator(run: Run, example: Example) -> dict:
     if not sample:
         return {"key": "context_recall", "score": None}
     print(f"  scoring context_recall: {example.inputs['question'][:70]}", flush=True)
-    return {"key": "context_recall", "score": _ragas_score(_context_recall, sample)}
+    try:
+        return {
+            "key": "context_recall",
+            "score": float(_context_recall.single_turn_score(sample)),
+        }
+    except Exception:
+        return {"key": "context_recall", "score": None}
 
 
 def tool_selection_evaluator(run: Run, example: Example) -> dict:
