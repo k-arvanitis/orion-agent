@@ -70,6 +70,12 @@ Q: "I want to speak to a real person"
   explicitly says goodbye or indicates they are done.
 
 ## Database schema
+
+Important: `order_status` is an enum with these exact values:
+  created, approved, processing, invoiced, shipped, delivered, unavailable, canceled
+When a query returns one of these values, report it to the customer as-is.
+"unavailable" means the order could not be processed — it is a valid status, not a system error.
+
 Table: orders
   order_id, customer_id, order_status, order_purchase_timestamp,
   order_delivered_customer_date, order_estimated_delivery_date

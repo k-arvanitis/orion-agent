@@ -389,7 +389,7 @@ def main() -> None:
             context_recall_evaluator,
         ],
         experiment_prefix=args.experiment,
-        max_concurrency=4,
+        max_concurrency=2,
     )
 
     scores = {
