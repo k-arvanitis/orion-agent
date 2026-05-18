@@ -226,7 +226,6 @@ def correctness_evaluator(run: Run, example: Example) -> dict:
     expected = example.outputs["expected_answer"]
     actual = (run.outputs or {}).get("answer", "")
 
-    print(f"  scoring correctness: {question[:70]}", flush=True)
     prompt = _CORRECTNESS_PROMPT.format(
         question=question, expected=expected, actual=actual
     )
@@ -259,7 +258,6 @@ def faithfulness_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "faithfulness", "score": None}
-    print(f"  scoring faithfulness: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "faithfulness",
@@ -273,7 +271,6 @@ def answer_relevancy_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "answer_relevancy", "score": None}
-    print(f"  scoring answer_relevancy: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "answer_relevancy",
@@ -287,7 +284,6 @@ def context_precision_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "context_precision", "score": None}
-    print(f"  scoring context_precision: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "context_precision",
@@ -301,7 +297,6 @@ def context_recall_evaluator(run: Run, example: Example) -> dict:
     sample = _build_rag_sample(run, example)
     if not sample:
         return {"key": "context_recall", "score": None}
-    print(f"  scoring context_recall: {example.inputs['question'][:70]}", flush=True)
     try:
         return {
             "key": "context_recall",
