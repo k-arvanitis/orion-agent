@@ -20,7 +20,7 @@ Built for e-commerce businesses handling repetitive support volume. Handles orde
 
 ## Demo
 
-[![Demo video](https://cdn.loom.com/sessions/thumbnails/2b3c370f2da647b7a3762e0b1231c09b-with-play.gif)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
+[![Demo video](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
 ![Chat UI with LangSmith trace panel](assets/chat-ui.png)
 
