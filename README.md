@@ -1,5 +1,7 @@
 # Orion — AI Customer Support Agent
 
+> **For non-technical readers:** Orion is an AI assistant that handles customer support automatically — answering order questions from your live database, policy questions from your documents, and escalating frustrated customers to your team via Slack and email. It deflects ~80% of tickets with no human in the loop. This repo demonstrates I can build that system end-to-end: agent logic, retrieval pipeline, database integration, escalation flows, evaluation harness, and a polished frontend.
+
 **Orion deflects ~80% of e-commerce support tickets automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed. No headcount increase required.
 
 Built for e-commerce businesses handling repetitive support volume. Handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop.
@@ -93,22 +95,34 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 
 ---
 
+## Design Decisions
+
+**LangGraph over a simple LangChain chain.** A chain executes linearly and has no native concept of per-session state. Orion needs to remember the last retrieved chunks and SQL result across turns so the UI trace panel is always scoped to the current user. LangGraph's `OrionState` carries that state per `thread_id`, and the node/edge graph makes the routing logic inspectable — adding a new tool is a node, not a patch buried in a prompt.
+
+**Qdrant over pgvector or Chroma.** Qdrant runs dense + sparse retrieval in a single prefetch query with built-in RRF fusion. pgvector requires two separate queries and manual reranking; Chroma has no sparse/BM25 support at all. For policy documents that contain exact regulated terms ("30-day return window", "Boleto", "CPF"), sparse retrieval is not optional — pure semantic search misses exact keyword matches under paraphrase.
+
+**Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (120 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
+
+**Evaluation harness over manual spot-checking.** 120 labeled examples across 6 categories with three measurement signals (RAGAS, LLM-as-judge, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer.
+
+---
+
 ## Tech Stack
 
-| Component          | Technology                                                              | Why |
-|--------------------|-------------------------------------------------------------------------|-----|
-| Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Stateful graph with explicit node/edge routing; per-thread OrionState allows session isolation without external state management |
-| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Fast inference via Groq; OpenAI-compatible API allows swapping models via env var without code changes; Qwen 3 handles structured tool use reliably and is fully Apache 2.0 |
-| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Qdrant Cloud: no local infra to manage; native hybrid search (dense + sparse) with RRF fusion in a single query; better retrieval quality than pgvector for this use case |
-| Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Pure Python via ONNX Runtime — no daemon, no API call, no key, no quota. Model file (~133 MB) downloads into the venv on first use; subsequent embeds are ~2 ms |
-| Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | BM25 catches exact keyword matches (order IDs, policy terms like "Boleto", "CPF") that semantic search misses |
-| Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Supabase: managed Postgres with no infra overhead; SQLAlchemy for type-safe query execution |
-| Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Schema-aware prompt + SELECT-only validation via sqlparse + one retry on failure — three layers of safety before a query reaches the DB |
-| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Gmail OAuth2 + Slack webhooks are independent — one failing does not block the other |
-| Observability      | LangSmith — traces every agent run                                      | LangSmith traces every agent run: tool decisions, latency, token usage — queryable after the fact |
-| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | RAGAS for retrieval quality + LLM-as-judge for answer correctness + exact match for tool selection — three complementary signals |
-| Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Streams tokens via fetch + ReadableStream; voice via the browser MediaRecorder API |
-| Backend            | FastAPI + uvicorn — `/api/chat` (streamed NDJSON), `/api/transcribe`, `/api/tts` | Thin wrapper around the LangGraph agent; clean HTTP boundary so the same agent could front a Slack bot, mobile app, or CLI |
+| Component          | Technology                                                              | Why, not the alternative |
+|--------------------|-------------------------------------------------------------------------|--------------------------|
+| Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Over a plain LangChain chain: LangGraph gives per-thread state, explicit node/edge routing, and clean tool-call visibility — a chain can't isolate session state or expose the trace panel without significant boilerplate |
+| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Over OpenAI: Groq's inference is 3–5× faster at comparable quality for tool use; Qwen 3 is Apache 2.0 so there are no API-key dependencies for eval runs. The OpenAI-compatible API means swapping models is a one-line env change |
+| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Over pgvector: Qdrant runs dense + sparse in a single prefetch query with built-in RRF fusion; pgvector requires two separate queries and manual reranking. Over Chroma: Chroma has no sparse/BM25 support |
+| Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Over a hosted embedding API (OpenAI, Cohere): zero latency, no quota, no key, no cost per token — the 133 MB model runs locally via ONNX Runtime at ~2 ms per embed after first-use download |
+| Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | Over dense-only: policy docs contain exact terms ("Boleto", "CPF", "30-day") that semantic search misses under paraphrase. BM25 handles keyword precision; dense handles intent — both are needed |
+| Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Over a local Postgres container: managed service with no infra overhead; free tier covers the demo dataset comfortably |
+| Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Over a dedicated Text2SQL library (e.g. vanna): full control over the prompt, schema injection, and retry logic; sqlparse SELECT-only validation adds a safety layer no library provides out of the box |
+| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Both fire independently — if Slack is down the email still sends. Over a single notification channel: two independent signals mean a frustrated customer is never silently dropped |
+| Observability      | LangSmith                                                               | Over logging to stdout: LangSmith captures tool decisions, token counts, and latency per node in a queryable UI — essential for diagnosing the `both`-category failures in eval |
+| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | Three complementary signals: RAGAS measures retrieval quality independently of the final answer; LLM-as-judge scores answer correctness; exact-match catches tool routing errors that the other two miss |
+| Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Over Streamlit: native token streaming via fetch + ReadableStream, a real component model for the trace sidebar, and voice via the browser MediaRecorder API — none of which are practical in Streamlit |
+| Backend            | FastAPI + uvicorn                                                       | Thin HTTP boundary around the LangGraph agent; the same agent could front a Slack bot or mobile app without changes to agent logic |
 
 ---
 
