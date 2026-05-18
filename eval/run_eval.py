@@ -161,7 +161,7 @@ def run_agent(inputs: dict) -> dict:
 # Evaluators
 # ---------------------------------------------------------------------------
 
-_judge = ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
+_judge = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 _ragas_llm = LangchainLLMWrapper(
     ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
 )
@@ -172,20 +172,31 @@ _context_precision = ContextPrecision(llm=_ragas_llm)
 _context_recall = ContextRecall(llm=_ragas_llm)
 
 _CORRECTNESS_PROMPT = """\
-You are evaluating a customer support AI agent.
+You are evaluating a customer support AI agent for an e-commerce store.
 
 Question: {question}
 Expected answer: {expected}
 Agent answer: {actual}
 
-Score the agent answer from 0 to 1:
-- 1.0  : correct and complete
-- 0.75 : mostly correct, minor omission
-- 0.5  : partially correct
-- 0.25 : relevant but wrong details
-- 0.0  : wrong or hallucinated
+Score the agent answer from 0 to 1 using these criteria:
 
-Reply with ONLY a number between 0 and 1. No explanation."""
+1.0 — All key facts are correct AND the conclusion/recommendation is correct.
+0.75 — All key facts are correct but the conclusion is incomplete or one minor
+       detail is missing (e.g. correct policy rule stated but no explicit
+       eligibility verdict given).
+0.5 — One of two required parts is correct (e.g. order fact retrieved correctly
+      but policy rule missing, OR policy rule correct but wrong order facts).
+      Also use 0.5 if the answer is directionally right but missing a specific
+      date, amount, or threshold that the expected answer includes.
+0.25 — The agent attempted to answer but key facts are wrong, hallucinated, or
+       the conclusion contradicts the evidence.
+0.0 — Wrong answer, refused to answer, or completely irrelevant.
+
+For questions that require BOTH a database lookup AND a policy rule, the answer
+must include both the specific order fact (date, amount, category) AND the policy
+conclusion to score above 0.5.
+
+Reply with ONLY a number: 0, 0.25, 0.5, 0.75, or 1.0. No explanation."""
 
 TOOL_CATEGORY_MAP = {
     "sql_only": {"query_database"},
