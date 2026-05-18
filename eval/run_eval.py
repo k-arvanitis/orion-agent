@@ -180,21 +180,23 @@ Agent answer: {actual}
 
 Score the agent answer from 0 to 1 using these criteria:
 
-1.0 — All key facts are correct AND the conclusion/recommendation is correct.
-0.75 — All key facts are correct but the conclusion is incomplete or one minor
-       detail is missing (e.g. correct policy rule stated but no explicit
-       eligibility verdict given).
-0.5 — One of two required parts is correct (e.g. order fact retrieved correctly
-      but policy rule missing, OR policy rule correct but wrong order facts).
-      Also use 0.5 if the answer is directionally right but missing a specific
-      date, amount, or threshold that the expected answer includes.
-0.25 — The agent attempted to answer but key facts are wrong, hallucinated, or
-       the conclusion contradicts the evidence.
+1.0 — The core answer is correct and complete for what was asked.
+0.75 — The core answer is correct but omits supplementary context that was NOT
+       directly asked for (e.g. the customer asked for order status and the agent
+       gave the correct status but did not mention the purchase date or payment
+       method). Also use 0.75 if one minor detail is missing from the conclusion.
+0.5 — The agent has the right direction but the primary fact asked for is missing
+      or wrong (e.g. gave a delivery date when freight cost was asked, or said
+      "cannot find" when the order exists). For both-tool questions: use 0.5 if
+      only one of the two required parts (order fact OR policy rule) is present.
+0.25 — Key facts are wrong, hallucinated, or the conclusion contradicts the data.
 0.0 — Wrong answer, refused to answer, or completely irrelevant.
 
-For questions that require BOTH a database lookup AND a policy rule, the answer
-must include both the specific order fact (date, amount, category) AND the policy
-conclusion to score above 0.5.
+Important: do NOT penalise the agent for omitting details the customer did not ask
+for. Judge only whether the question was correctly answered.
+
+For questions requiring BOTH a database lookup AND a policy rule, the answer must
+include both the specific order fact AND the policy conclusion to score above 0.5.
 
 Reply with ONLY a number: 0, 0.25, 0.5, 0.75, or 1.0. No explanation."""
 
