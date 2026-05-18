@@ -24,12 +24,9 @@ https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
 
 The recording above covers four query types:
 
-<!-- SCREENSHOTS: Add 3 screenshots here after recording -->
-<!-- Screenshot 1: Multi-tool answer with trace panel open (RAG + SQL query) -->
-<!-- Screenshot 2: Escalation confirmation in chat UI -->
-<!-- Screenshot 3: Voice mode mic button (optional) -->
+[![Demo video](https://cdn.loom.com/sessions/thumbnails/2b3c370f2da647b7a3762e0b1231c09b-with-play.gif)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
-🎬 **[Watch the full demo on Loom](#)** ← replace `#` with Loom URL
+![Chat UI with LangSmith trace panel](assets/chat-ui.png)
 
 | Timestamp | Query type | What it demonstrates |
 |---|---|---|
@@ -147,6 +144,10 @@ Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 ### `escalate` — Human handoff
 
 Triggered when the agent cannot resolve an issue or the customer asks for a human. Fetches full order details from Supabase (with `STRING_AGG` for split-payment orders), sends a confirmation email to the customer via the **Gmail API** (OAuth2), and posts an urgent alert to the operator **Slack** channel. Both calls are independent — if one fails, the other still fires.
+
+![Slack escalation alert](assets/slack-escalation.png)
+
+![Gmail confirmation email](assets/gmail-escalation.png)
 
 ---
 
