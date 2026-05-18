@@ -16,13 +16,9 @@ Built for e-commerce businesses handling repetitive support volume. Handles orde
 ![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?style=for-the-badge&logo=qdrant&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-https://github.com/user-attachments/assets/5b2548d6-74d0-4000-a1c0-d3a8dcf71b86
-
 ---
 
 ## Demo
-
-The recording above covers four query types:
 
 [![Demo video](https://cdn.loom.com/sessions/thumbnails/2b3c370f2da647b7a3762e0b1231c09b-with-play.gif)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
@@ -119,9 +115,8 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 | Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Gmail OAuth2 + Slack webhooks are independent — one failing does not block the other |
 | Observability      | LangSmith — traces every agent run                                      | LangSmith traces every agent run: tool decisions, latency, token usage — queryable after the fact |
 | Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | RAGAS for retrieval quality + LLM-as-judge for answer correctness + exact match for tool selection — three complementary signals |
-| Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Looks like a real product, not a Streamlit demo. Streams tokens via fetch + ReadableStream; voice via the browser MediaRecorder API |
+| Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Streams tokens via fetch + ReadableStream; voice via the browser MediaRecorder API |
 | Backend            | FastAPI + uvicorn — `/api/chat` (streamed NDJSON), `/api/transcribe`, `/api/tts` | Thin wrapper around the LangGraph agent; clean HTTP boundary so the same agent could front a Slack bot, mobile app, or CLI |
-| UI (legacy)        | Streamlit                                                               | Single-file fallback for local dev. `ui/app.py`. Not the primary surface. |
 
 ---
 
@@ -242,7 +237,6 @@ make api       # FastAPI backend (uvicorn, hot-reload on :8088)
 make ui        # Next.js frontend (dev server on :3500)
 
 make run       # CLI agent (no frontend)
-make streamlit # Legacy Streamlit UI on :8501 (fallback only)
 make test      # run all Python tests
 make eval      # LangSmith evaluation (skips escalation)
 ```
@@ -281,8 +275,6 @@ make docker-up             # starts api (8088) + ui (3500)
 ```
 
 Then open `http://localhost:3500`.
-
-> **Legacy Streamlit** is available via `docker compose --profile legacy up streamlit`.
 
 > **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
 
@@ -453,7 +445,6 @@ orion-agent/
 │   ├── test_voice.py
 │   └── test_api.py
 ├── ui/
-│   └── app.py                # Legacy Streamlit UI (kept as a one-file fallback)
 ├── scripts/
 │   └── auth_gmail.py         # One-time Gmail OAuth setup
 ├── data/

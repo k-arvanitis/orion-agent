@@ -1,5 +1,5 @@
 """
-Voice I/O wrapper for the Streamlit UI.
+Voice I/O wrapper.
 
 Two functions:
   - transcribe(audio_bytes) -> str  : Groq Whisper (whisper-large-v3-turbo)

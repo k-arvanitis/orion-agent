@@ -47,7 +47,7 @@ SPARSE_MODEL: str = os.getenv("SPARSE_MODEL", "Qdrant/bm25")
 QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "orion-policies")
 
 # ---------------------------------------------------------------------------
-# Voice I/O (used by the Streamlit UI's optional voice mode)
+# Voice I/O
 # ---------------------------------------------------------------------------
 
 # Groq Whisper variant — turbo for sub-second short-clip transcription.

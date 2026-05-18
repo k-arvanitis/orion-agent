@@ -1,4 +1,4 @@
-.PHONY: run ui streamlit api stack test eval ingest docker-build docker-up help
+.PHONY: run ui api stack test eval ingest docker-build docker-up help
 
 API_PORT ?= 8088
 WEB_PORT ?= 3500
@@ -9,7 +9,6 @@ help:
 	@echo "  make api          - Start the FastAPI backend (port $(API_PORT))"
 	@echo "  make ui           - Start the Next.js frontend (port $(WEB_PORT))"
 	@echo "  make stack        - Start API + UI together (foreground; Ctrl-C stops both)"
-	@echo "  make streamlit    - Start the legacy Streamlit UI (port 8501)"
 	@echo "  make test         - Run all Python tests"
 	@echo "  make eval         - Run LangSmith evaluation (skips escalation)"
 	@echo "  make ingest       - Embed and push policy chunks to Qdrant"
@@ -30,9 +29,6 @@ stack:
 	$(MAKE) api & \
 	$(MAKE) ui & \
 	wait
-
-streamlit:
-	uv run --frozen streamlit run ui/app.py
 
 test:
 	uv run --frozen pytest tests/ -v
