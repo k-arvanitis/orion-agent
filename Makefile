@@ -33,8 +33,10 @@ stack:
 test:
 	uv run --frozen pytest tests/ -v
 
+EVAL_EXPERIMENT ?= orion-v5
+
 eval:
-	uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v1
+	nohup uv run --frozen python eval/run_eval.py --skip-escalation --experiment $(EVAL_EXPERIMENT) > eval.log 2>&1 & echo "Eval PID $$! — tailing eval.log (Ctrl-C to detach, eval keeps running)"; tail -f eval.log
 
 ingest:
 	uv run --frozen python -m ingestion.chunker data/policies

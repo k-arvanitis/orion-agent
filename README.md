@@ -103,7 +103,7 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 
 **Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (120 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
 
-**Evaluation harness over manual spot-checking.** 120 labeled examples across 6 categories with three measurement signals (RAGAS, LLM-as-judge, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer.
+**Evaluation harness over manual spot-checking.** 116 labeled examples across 6 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
 
 ---
 
@@ -120,7 +120,7 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 | Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Over a dedicated Text2SQL library (e.g. vanna): full control over the prompt, schema injection, and retry logic; sqlparse SELECT-only validation adds a safety layer no library provides out of the box |
 | Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Both fire independently — if Slack is down the email still sends. Over a single notification channel: two independent signals mean a frustrated customer is never silently dropped |
 | Observability      | LangSmith                                                               | Over logging to stdout: LangSmith captures tool decisions, token counts, and latency per node in a queryable UI — essential for diagnosing the `both`-category failures in eval |
-| Evaluation         | LangSmith + RAGAS + LLM-as-judge                                        | Three complementary signals: RAGAS measures retrieval quality independently of the final answer; LLM-as-judge scores answer correctness; exact-match catches tool routing errors that the other two miss |
+| Evaluation         | Custom LLM-as-judge harness (fully local, JSON output)                  | Over RAGAS + LangSmith: RAGAS faithfulness incorrectly penalises `both_tools` answers for SQL facts that aren't in the RAG context; LangSmith's free tier trace quota runs out mid-eval. The custom judge uses claim-level faithfulness (inferred conclusions count as supported), writes results to disk after every example, and has no external service dependency |
 | Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Over Streamlit: native token streaming via fetch + ReadableStream, a real component model for the trace sidebar, and voice via the browser MediaRecorder API — none of which are practical in Streamlit |
 | Backend            | FastAPI + uvicorn                                                       | Thin HTTP boundary around the LangGraph agent; the same agent could front a Slack bot or mobile app without changes to agent logic |
 
@@ -215,7 +215,6 @@ DATABASE_URL=postgresql://...
 QDRANT_URL=https://...
 QDRANT_API_KEY=...
 GROQ_API_KEY=...
-LANGCHAIN_API_KEY=...
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ELEVENLABS_API_KEY=sk_...   # voice mode only — omit if not using voice
 ```
@@ -244,7 +243,7 @@ make ui        # Next.js frontend (dev server on :3500)
 
 make run       # CLI agent (no frontend)
 make test      # run all Python tests
-make eval      # LangSmith evaluation (skips escalation)
+make eval      # run evaluation — results saved to eval/orion-v9.json (skips escalation)
 ```
 
 > **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
@@ -330,37 +329,32 @@ The eval harness runs **120 labeled question-answer pairs** across 6 categories.
 
 **Scoring:**
 
-Each example is scored with up to 6 metrics. RAGAS metrics only apply to `rag_only` and `both` categories where chunks are retrieved.
+Each example is scored with up to 4 metrics. RAG metrics only apply to categories where chunks are retrieved.
 
-| Metric             | Method                                                              | Applies to |
-|--------------------|---------------------------------------------------------------------|------------|
-| Correctness        | LLM-as-judge (Qwen 3 32B) — scores 0–1 against expected answer     | All        |
-| Tool selection     | Exact match against expected tool set                               | All        |
-| Faithfulness       | RAGAS — is the answer grounded in retrieved chunks?                 | RAG rows   |
-| Answer relevancy   | RAGAS — does the answer address the question?                       | RAG rows   |
-| Context precision  | RAGAS — are retrieved chunks relevant?                              | RAG rows   |
-| Context recall     | RAGAS — were all relevant chunks retrieved?                         | RAG rows   |
+| Metric             | Method                                                                          | Applies to          |
+|--------------------|---------------------------------------------------------------------------------|---------------------|
+| Correctness        | LLM-as-judge (Llama 3.3 70B) — scores 0–1 against expected answer              | All                 |
+| Tool selection     | Exact match against expected tool set                                           | All                 |
+| Faithfulness       | Custom claim-level judge — inferred conclusions count as supported; only contradictions and absent facts penalised | `rag_only` only |
+| Answer relevancy   | LLM-as-judge — does the answer directly address the question?                   | All RAG categories  |
 
-**Reading correctness 0.80.** A correctness score of 0.80 means that, averaged over 111 questions, the agent's answer is roughly four-fifths of the way to the labelled expected answer (full marks for an exact match, partial credit for the right facts in the wrong shape, zero for a wrong or hallucinated answer). It is useful — most answers land — but scores are not yet high enough for unsupervised deployment. The dominant failure mode is the `both` category: the agent retrieves the right policy chunks *and* the right order rows but does not reliably combine them in a single answer ("your order arrived 3 days late, but our policy only covers refunds for delays over 7 days" becomes one of the two halves). The next step is a policy+order chaining prompt that forces the model to state both facts before drawing a conclusion, plus a focused mini-eval on the `both` subset to confirm the lift before re-running the full suite.
+Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
 
-**Results (orion-v3, 111 examples):**
+**Results (orion-v9, 116 examples, escalation excluded):**
 
 | Metric             | Score | Examples |
 |--------------------|-------|----------|
-| Correctness        | 0.80  | 111      |
-| Tool selection     | 0.99  | 111      |
-| Faithfulness       | 0.67  | 59       |
-| Context precision  | 0.80  | 73       |
-| Context recall     | 0.74  | 73       |
+| Correctness        | 0.87  | 116      |
+| Tool selection     | 0.93  | 111      |
+| Faithfulness       | 0.97  | 44       |
+| Answer relevancy   | 0.94  | 75       |
 
-> **Note on sample size:** the full dataset is 120 examples, but escalation cases (4) and any unscored rows are skipped during eval — escalation would fire real Slack/Gmail traffic, so it is excluded by `--skip-escalation`. Scored: **111 / 120**.
-
-**Tool selection accuracy (0.99)** is the strongest signal: the agent routes to the correct tool virtually every time with no explicit classifier.
+**Reading the scores.** Correctness 0.87 means the agent's answer is on-target for 87% of questions — right facts, right tool, right conclusion. Tool selection 0.93 is strong: the agent routes to the correct tool(s) without an explicit classifier. Faithfulness 0.97 confirms that policy answers are tightly grounded in retrieved chunks with minimal hallucination. Answer relevancy 0.94 shows answers stay on-topic rather than adding unrequested context.
 
 ```bash
-uv run --frozen python eval/run_eval.py --skip-escalation --experiment orion-v3
-# smoke test
-uv run --frozen python eval/run_eval.py --skip-escalation --limit 5
+make eval                                    # full run, saves to eval/orion-v9.json
+make eval EVAL_EXPERIMENT=orion-v10          # custom experiment name
+uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 ```
 
 ---
@@ -419,7 +413,8 @@ orion-agent/
 │   ├── ingest.py             # Embed + push to Qdrant (dense + sparse)
 │   └── load_customer_data.py # CSV → Supabase with automatic type inference
 ├── eval/
-│   ├── run_eval.py           # LangSmith eval harness (6 metrics, 120 cases)
+│   ├── run_eval.py           # Local eval harness (4 metrics, 116 cases, results → JSON)
+│   ├── judge.py              # Custom claim-level LLM judge (faithfulness + answer relevancy)
 │   └── dataset.json          # 120 labeled test cases across 6 categories
 ├── api/
 │   ├── main.py               # FastAPI app: /api/chat (NDJSON stream), /transcribe, /tts
