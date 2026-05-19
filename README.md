@@ -20,9 +20,7 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ## Demo
 
-<video src="assets/orion-agent-demo.mp4" controls width="100%"></video>
-
-![Chat UI with trace panel](assets/chat-ui.png)
+[![Watch the full demo](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
 
 ---
