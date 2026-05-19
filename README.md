@@ -23,6 +23,7 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
+![Chat UI with trace panel](assets/chat-ui.png)
 
 ---
 
