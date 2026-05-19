@@ -20,7 +20,7 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ## Demo
 
-[![Watch the full demo](assets/demo-thumbnail.gif)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
+[![Watch the full demo](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
 ![Chat UI with trace panel](assets/chat-ui.png)
 
