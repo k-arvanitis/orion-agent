@@ -1,10 +1,10 @@
 # Orion — AI Customer Support Agent
 
-**Orion deflects ~80% of e-commerce support tickets automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed.
+**Orion handles the majority of e-commerce support queries automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed. In structured eval across 116 labeled examples: **87% correctness, 93% correct tool routing**.
 
 Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop. No headcount increase required.
 
-**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to deflect 80% of tickets without adding headcount.
+**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to automate tier-1 tickets without adding headcount.
 
 [![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -20,9 +20,7 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ## Demo
 
-![Orion demo](assets/demo.gif)
-
-[![Full demo video](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
+[![Watch the full demo](assets/demo-thumbnail.gif)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
 
 ![Chat UI with trace panel](assets/chat-ui.png)
 
