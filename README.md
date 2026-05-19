@@ -1,10 +1,8 @@
 # Orion — AI Customer Support Agent
 
-> **For non-technical readers:** Orion is an AI assistant that handles customer support automatically — answering order questions from your live database, policy questions from your documents, and escalating frustrated customers to your team via Slack and email. It deflects ~80% of tickets with no human in the loop. This repo demonstrates I can build that system end-to-end: agent logic, retrieval pipeline, database integration, escalation flows, evaluation harness, and a polished frontend.
+**Orion deflects ~80% of e-commerce support tickets automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed.
 
-**Orion deflects ~80% of e-commerce support tickets automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed. No headcount increase required.
-
-Built for e-commerce businesses handling repetitive support volume. Handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop.
+Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop. No headcount increase required.
 
 **Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to deflect 80% of tickets without adding headcount.
 
@@ -22,9 +20,11 @@ Built for e-commerce businesses handling repetitive support volume. Handles orde
 
 ## Demo
 
-[![Demo video](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
+![Orion demo](assets/demo.gif)
 
-![Chat UI with LangSmith trace panel](assets/chat-ui.png)
+[![Full demo video](assets/demo-thumbnail.jpg)](https://www.loom.com/share/2b3c370f2da647b7a3762e0b1231c09b)
+
+![Chat UI with trace panel](assets/chat-ui.png)
 
 
 ---
@@ -216,7 +216,14 @@ QDRANT_URL=https://...
 QDRANT_API_KEY=...
 GROQ_API_KEY=...
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-ELEVENLABS_API_KEY=sk_...   # voice mode only — omit if not using voice
+ELEVENLABS_API_KEY=sk_...      # voice mode only — omit if not using voice
+```
+
+Optional (enables LangSmith tracing for agent runs):
+```
+LANGCHAIN_API_KEY=...
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=orion-agent
 ```
 
 For Gmail escalation, run the one-time OAuth flow:
@@ -471,7 +478,7 @@ orion-agent/
 
 ## About the Author
 
-Junior AI engineer specialising in LangGraph agents and RAG systems for SMBs.
+AI engineer specialising in LangGraph agents and RAG systems for SMBs.
 
 - Upwork: https://www.upwork.com/freelancers/~01dffea4a9afbdc9f6
 - GitHub: https://github.com/k-arvanitis
