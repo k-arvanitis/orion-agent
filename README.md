@@ -20,7 +20,9 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ## Demo
 
-https://github.com/k-arvanitis/orion-agent/blob/master/assets/orion-agent-demo.mp4
+
+https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
+
 
 ---
 
