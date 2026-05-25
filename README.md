@@ -474,13 +474,10 @@ orion-agent/
 
 ---
 
-## About the Author
+## Contact
 
-AI engineer specialising in LangGraph agents and RAG systems for SMBs.
+Built by Konstantinos Arvanitis — AI engineer specialising in LangGraph agents and RAG systems for SMBs.
 
-- Upwork: https://www.upwork.com/freelancers/~01dffea4a9afbdc9f6
-- GitHub: https://github.com/k-arvanitis
-- LinkedIn: https://www.linkedin.com/in/konstantinos-arvanitis-0248b3246/
+- [LinkedIn](https://www.linkedin.com/in/konstantinos-arvanitis-0248b3246/)
+- [GitHub](https://github.com/k-arvanitis)
 - Email: konstantinos.arvanitis@outlook.com
-
-Open to freelance and contract work on similar systems — get in touch if you want one built for your business.
