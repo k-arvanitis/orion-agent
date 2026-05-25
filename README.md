@@ -110,7 +110,7 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 | Component          | Technology                                                              | Why, not the alternative |
 |--------------------|-------------------------------------------------------------------------|--------------------------|
 | Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Over a plain LangChain chain: LangGraph gives per-thread state, explicit node/edge routing, and clean tool-call visibility — a chain can't isolate session state or expose the trace panel without significant boilerplate |
-| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Over OpenAI: Groq's inference is 3–5× faster at comparable quality for tool use; Qwen 3 is Apache 2.0 so there are no API-key dependencies for eval runs. The OpenAI-compatible API means swapping models is a one-line env change |
+| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Over OpenAI: Groq's inference is 3–5× faster at comparable quality for tool use; Qwen 3's Apache 2.0 license means it can be self-hosted with no licensing restrictions — currently served via Groq for speed, swappable to a local vLLM endpoint with a one-line env change |
 | RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Over pgvector: Qdrant runs dense + sparse in a single prefetch query with built-in RRF fusion; pgvector requires two separate queries and manual reranking. Over Chroma: Chroma has no sparse/BM25 support |
 | Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Over a hosted embedding API (OpenAI, Cohere): zero latency, no quota, no key, no cost per token — the 133 MB model runs locally via ONNX Runtime at ~2 ms per embed after first-use download |
 | Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | Over dense-only: policy docs contain exact terms ("Boleto", "CPF", "30-day") that semantic search misses under paraphrase. BM25 handles keyword precision; dense handles intent — both are needed |
@@ -319,7 +319,7 @@ I want to speak to a real person. My email is customer@example.com.
 
 ## Evaluation
 
-The eval harness runs **120 labeled question-answer pairs** across 6 categories. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for correctness.
+The eval harness runs **120 labeled question-answer pairs** (116 scored; 4 escalation cases excluded from quantitative metrics) across 6 categories. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
 
 **Dataset breakdown:**
 
@@ -465,7 +465,7 @@ orion-agent/
 
 ## Known Limitations
 
-- **No hallucination guard** — the guard layer strips PII only. Numeric hallucinations (fabricated prices, dates) are not cross-checked. Qwen 3 32B is reliable in practice, but a production deployment should add a verification step against raw tool output.
+- **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
 - **In-memory thread state** — `OrionState` is not persisted. A service restart clears all conversation history. For production use, LangGraph's checkpointer interface would need to be wired to a durable store (e.g. Redis or Postgres).
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
