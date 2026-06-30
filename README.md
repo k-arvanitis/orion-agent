@@ -354,7 +354,16 @@ Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers
 | Faithfulness       | 0.97  | 44       |
 | Answer relevancy   | 0.94  | 75       |
 
-**Reading the scores.** Correctness 0.87 means the agent's answer is on-target for 87% of questions — right facts, right tool, right conclusion. Tool selection 0.93 is strong: the agent routes to the correct tool(s) without an explicit classifier. Faithfulness 0.97 confirms that policy answers are tightly grounded in retrieved chunks with minimal hallucination. Answer relevancy 0.94 shows answers stay on-topic rather than adding unrequested context.
+**Per-category breakdown:**
+
+| Category       | n   | Correctness | Tool selection | Notes |
+|----------------|-----|-------------|----------------|-------|
+| `rag_only`     | 44  | **0.96**    | **1.00**       | Policy questions — near-perfect |
+| `sql_only`     | 36  | **0.85**    | **0.97**       | Order lookups — occasional SQL generation error |
+| `both`         | 31  | **0.78**    | **0.77**       | Mixed queries — primary failure surface |
+| `none`         | 5   | **0.70**    | —              | Adversarial / out-of-scope |
+
+**Where it fails.** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
 
 ```bash
 make eval                                    # full run, saves to eval/orion-v9.json

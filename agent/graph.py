@@ -28,12 +28,14 @@ from typing import NotRequired
 
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_groq import ChatGroq
-from langgraph.checkpoint.memory import MemorySaver
+from pathlib import Path
+
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
 
 from agent import guard
-from agent.config import AGENT_MODEL, chat_groq_kwargs
+from agent.config import AGENT_MODEL, CHECKPOINT_DB_PATH, chat_groq_kwargs
 from agent.prompts import SYSTEM_PROMPT
 from agent.tools import escalate, query_database, search_policies
 
@@ -160,4 +162,9 @@ _builder.add_conditional_edges(
 _builder.add_edge("tools", "agent")
 _builder.add_edge("guard", END)
 
-graph = _builder.compile(checkpointer=MemorySaver())
+_checkpoint_path = Path(CHECKPOINT_DB_PATH)
+_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+# SqliteSaver.from_conn_string is a context manager; __enter__ returns the saver.
+# Kept open for the lifetime of the process (module-level singleton).
+_checkpointer = SqliteSaver.from_conn_string(str(_checkpoint_path)).__enter__()
+graph = _builder.compile(checkpointer=_checkpointer)

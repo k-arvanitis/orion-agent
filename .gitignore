@@ -35,3 +35,8 @@ data/memory.db
 # IDE
 *.code-workspace
 .vscode/
+data/checkpoints.db
+
+# Local planning docs
+TODO.md
+PROGRESS.md

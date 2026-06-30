@@ -68,3 +68,11 @@ VOICE_TTS_VOICE_ID: str = os.getenv("VOICE_TTS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"
 # Operator email that receives escalation alerts.
 # Override with: OPERATOR_EMAIL=real-team@yourcompany.com
 OPERATOR_EMAIL: str = os.getenv("OPERATOR_EMAIL", "support-team@shopnova.com.br")
+
+# ---------------------------------------------------------------------------
+# Checkpointing
+# ---------------------------------------------------------------------------
+
+# Path to the SQLite file that persists conversation state across restarts.
+# Set CHECKPOINT_DB_PATH to an absolute path in production.
+CHECKPOINT_DB_PATH: str = os.getenv("CHECKPOINT_DB_PATH", "data/checkpoints.db")
