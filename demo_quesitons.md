@@ -67,7 +67,7 @@ Expected result:
 
 Click **New conversation**, then send:
 
-> My email is maya.torres@example.com. I need a refund because the order will arrive after my trip.
+> My email is maya.torres@example.com. The tracking shows my order won't arrive until August 3, but I leave for my trip on August 2 — can I get a refund since it won't make it in time?
 
 Expected result:
 
