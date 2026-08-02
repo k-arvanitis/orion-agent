@@ -11,9 +11,19 @@ import os
 # LLM
 # ---------------------------------------------------------------------------
 
-# Groq model used for the agent and eval judge.
-# Override with: AGENT_MODEL=openai/gpt-oss-120b
+# Chat model used for the agent and SQL generation.
 AGENT_MODEL: str = os.getenv("AGENT_MODEL", "qwen/qwen3-32b")
+
+# OpenRouter is preferred when its key is configured. Existing Groq-only
+# installations continue to work without changing their environment.
+OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+LLM_PROVIDER: str = os.getenv(
+    "LLM_PROVIDER", "openrouter" if OPENROUTER_API_KEY else "groq"
+).lower()
+LLM_API_BASE: str = os.getenv("LLM_API_BASE", "https://openrouter.ai/api/v1")
+LLM_REQUEST_TIMEOUT_S: float = float(os.getenv("LLM_REQUEST_TIMEOUT_S", "60"))
+OPENROUTER_PROVIDER_PIN: str = os.getenv("OPENROUTER_PROVIDER_PIN", "")
 
 # Reasoning models on Groq (Qwen 3, gpt-oss) emit <think>...</think> blocks
 # unless reasoning_format is set. Non-reasoning models reject the parameter,

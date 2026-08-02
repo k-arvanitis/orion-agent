@@ -18,7 +18,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from agent.graph import should_continue
+from agent.graph import graph, should_continue
+
+
+def test_graph_checkpointer_connection_stays_open():
+    state = graph.get_state(
+        {"configurable": {"thread_id": "checkpointer-lifecycle-test"}}
+    )
+    assert state.values == {}
 
 
 def test_should_continue_returns_tools_when_tool_calls_present():

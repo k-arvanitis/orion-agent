@@ -24,24 +24,23 @@ Usage:
 
 import json
 import logging
+from pathlib import Path
 from typing import NotRequired
 
 from langchain_core.messages import AIMessage, ToolMessage
-from langchain_groq import ChatGroq
-from pathlib import Path
-
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
 
 from agent import guard
-from agent.config import AGENT_MODEL, CHECKPOINT_DB_PATH, chat_groq_kwargs
+from agent.config import CHECKPOINT_DB_PATH
+from agent.llm import build_chat_model
 from agent.prompts import SYSTEM_PROMPT
 from agent.tools import escalate, query_database, search_policies
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatGroq(model=AGENT_MODEL, temperature=0, max_tokens=2048, **chat_groq_kwargs())
+_llm = build_chat_model(max_tokens=2048)
 _llm_with_tools = _llm.bind_tools([search_policies, query_database, escalate])
 
 _TOOLS_BY_NAME = {
@@ -164,7 +163,9 @@ _builder.add_edge("guard", END)
 
 _checkpoint_path = Path(CHECKPOINT_DB_PATH)
 _checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-# SqliteSaver.from_conn_string is a context manager; __enter__ returns the saver.
-# Kept open for the lifetime of the process (module-level singleton).
-_checkpointer = SqliteSaver.from_conn_string(str(_checkpoint_path)).__enter__()
+# Keep the context manager itself alive for the process lifetime. Retaining only
+# its ``__enter__`` result lets the temporary manager be garbage-collected,
+# which closes the SQLite connection underneath LangGraph.
+_checkpointer_context = SqliteSaver.from_conn_string(str(_checkpoint_path))
+_checkpointer = _checkpointer_context.__enter__()
 graph = _builder.compile(checkpointer=_checkpointer)

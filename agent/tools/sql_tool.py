@@ -2,11 +2,11 @@
 Text2SQL tool — translates natural language to SQL and queries Supabase.
 
 Flow:
-  1. Groq generates a SELECT query from the question + schema context.
+  1. The configured chat model generates a SELECT query from the question + schema.
   2. sqlparse validates it (SELECT only, no dangerous statements).
   3. SQLAlchemy executes it with a 100-row limit and 5s timeout.
-  4. Groq interprets the raw rows into a plain-language answer.
-  5. On SQL error, one retry with the error message fed back to Groq.
+  4. The chat model interprets the raw rows into a plain-language answer.
+  5. On SQL error, one retry with the error message fed back to the model.
 
 Return format:
   JSON string: {"answer": "<text for LLM>", "sql": "<query that ran>"}
@@ -20,12 +20,12 @@ import os
 import textwrap
 
 import sqlparse
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import tool
-from langchain_groq import ChatGroq
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from agent.config import AGENT_MODEL, chat_groq_kwargs
+from agent.llm import build_chat_model
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ QUERY_TIMEOUT = 5  # seconds
 MAX_OUTPUT_CHARS = 3000
 
 _engine = None
-_llm: ChatGroq | None = None
+_llm: BaseChatModel | None = None
 
 SCHEMA = textwrap.dedent("""
     orders(order_id, customer_id, order_status, order_purchase_timestamp,
@@ -67,10 +67,10 @@ def _get_engine():
     return _engine
 
 
-def _get_llm() -> ChatGroq:
+def _get_llm() -> BaseChatModel:
     global _llm
     if _llm is None:
-        _llm = ChatGroq(model=AGENT_MODEL, temperature=0, **chat_groq_kwargs())
+        _llm = build_chat_model()
     return _llm
 
 
