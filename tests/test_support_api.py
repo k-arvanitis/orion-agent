@@ -1,0 +1,218 @@
+"""Tests for the persistent customer/support demo API."""
+
+import os
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+os.environ.setdefault("GROQ_API_KEY", "test-dummy-key")
+os.environ.setdefault("ELEVENLABS_API_KEY", "test-dummy-key")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+os.environ.setdefault("QDRANT_API_KEY", "test-dummy-key")
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/test")
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+@pytest.fixture()
+def support_client(tmp_path):
+    from api.main import app
+    from api.support_store import configure_database
+
+    configure_database(f"sqlite:///{tmp_path / 'support.db'}")
+    with TestClient(app) as client:
+        yield client
+
+
+def test_seeded_crm_data_is_returned(support_client):
+    customers = support_client.get("/api/support/customers")
+    products = support_client.get("/api/support/products")
+    conversations = support_client.get("/api/support/conversations")
+
+    assert customers.status_code == 200
+    assert products.status_code == 200
+    assert conversations.status_code == 200
+    assert len(customers.json()) == 6
+    assert len(products.json()) == 7
+    assert len(conversations.json()) == 6
+    assert customers.json()[0]["orders"][0]["item"]
+
+
+def test_demo_overview_is_derived_from_seeded_database(support_client):
+    response = support_client.get("/api/support/demo/overview")
+
+    assert response.status_code == 200
+    overview = response.json()
+    assert overview["database"] == "SQLite"
+    assert overview["counts"] == {
+        "customers": 6,
+        "products": 7,
+        "orders": 7,
+        "conversations": 6,
+        "waiting": 3,
+        "resolved": 3,
+    }
+    assert overview["sample"]["orderId"] in overview["examples"][0]["message"]
+    assert overview["sample"]["email"] in overview["examples"][1]["message"]
+    assert overview["sample"]["parcelId"] in overview["examples"][2]["message"]
+
+
+def test_conversation_identifies_customer_and_persists_reply(support_client):
+    unmatched = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "Where is my order?", "conversation_id": None},
+    )
+    assert unmatched.status_code == 422
+
+    matched = support_client.post(
+        "/api/support/conversations/messages",
+        json={
+            "message": "Where is order 416e49799e9260d93c8f636ce6661a55?",
+            "conversation_id": None,
+        },
+    )
+    assert matched.status_code == 200
+    ticket = matched.json()
+    assert ticket["customer"]["name"] == "Maya Torres"
+    assert ticket["status"] == "Resolved by Orion"
+    order_reply = ticket["messages"][-1]["content"]
+    assert order_reply == (
+        "Your order is currently delayed: Expected Jul 30 · Standard shipping. "
+        "Is there anything else I can help you with regarding your order?"
+    )
+    assert "Maya" not in order_reply
+    assert "416e49799e9260d93c8f636ce6661a55" not in order_reply
+    assert "BR-SP-8042-1197" not in order_reply
+    assert "support teammate" not in order_reply
+
+    escalated = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "I need a refund.", "conversation_id": ticket["id"]},
+    )
+    assert escalated.status_code == 200
+    assert escalated.json()["status"] == "Waiting for support"
+
+    replied = support_client.post(
+        f"/api/support/conversations/{ticket['id']}/reply",
+        json={"message": "Your refund was approved."},
+    )
+    assert replied.status_code == 200
+    assert replied.json()["messages"][-1]["content"] == "Your refund was approved."
+
+    listed = support_client.get("/api/support/conversations").json()
+    stored = next(
+        conversation
+        for conversation in listed
+        if conversation["id"] == ticket["id"]
+    )
+    assert stored["messages"][-1]["content"] == "Your refund was approved."
+
+    finished = support_client.post(
+        f"/api/support/conversations/{ticket['id']}/finish"
+    )
+    assert finished.status_code == 200
+    assert finished.json()["status"] == "Resolved by support"
+    assert finished.json()["actionNeeded"] is None
+
+    persisted = support_client.get("/api/support/conversations").json()
+    finished_ticket = next(
+        conversation
+        for conversation in persisted
+        if conversation["id"] == ticket["id"]
+    )
+    assert finished_ticket["status"] == "Resolved by support"
+
+
+def test_policy_question_uses_vector_store_without_customer_identity(support_client):
+    response = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "What is your return policy?", "conversation_id": None},
+    )
+
+    assert response.status_code == 200
+    ticket = response.json()
+    assert ticket["customer"]["id"] == "CUS-VISITOR"
+    assert ticket["status"] == "Resolved by Orion"
+    assert ticket["technicalDetails"]["tools"] == [
+        {
+            "name": "policy_vector_search",
+            "label": "Policy vector search",
+            "result": "3 chunks",
+        }
+    ]
+    assert ticket["technicalDetails"]["records"] == []
+    assert ticket["technicalDetails"]["documents"][0]["source"] == "return_policy.md"
+    assert ticket["messages"][-1]["content"] == (
+        "Most items can be returned within 30 calendar days of confirmed delivery "
+        "if they are unused and include their original packaging and tags."
+    )
+
+
+def test_policy_visitor_order_request_asks_for_identifier(support_client):
+    policy = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "What is your return policy?", "conversation_id": None},
+    ).json()
+
+    response = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "I want a refund", "conversation_id": policy["id"]},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Please share your email, customer ID, order number, or parcel number "
+        "so I can find the right order."
+    )
+
+
+def test_policy_visitor_can_be_identified_in_later_message(support_client):
+    policy = support_client.post(
+        "/api/support/conversations/messages",
+        json={"message": "What is your return policy?", "conversation_id": None},
+    ).json()
+
+    response = support_client.post(
+        "/api/support/conversations/messages",
+        json={
+            "message": "Where is order 416e49799e9260d93c8f636ce6661a55?",
+            "conversation_id": policy["id"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["customer"]["name"] == "Maya Torres"
+    assert response.json()["subject"] == "Order status"
+
+
+def test_opening_conversation_clears_unread_count(support_client):
+    tickets = support_client.get("/api/support/conversations").json()
+    ticket = next(item for item in tickets if item["unread"] > 0)
+
+    response = support_client.post(
+        f"/api/support/conversations/{ticket['id']}/read"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["unread"] == 0
+    stored = support_client.get("/api/support/conversations").json()
+    assert next(item for item in stored if item["id"] == ticket["id"])["unread"] == 0
+
+
+def test_support_can_delete_any_conversation(support_client):
+    tickets = support_client.get("/api/support/conversations").json()
+    ticket = next(item for item in tickets if item["source"] == "seed")
+
+    response = support_client.delete(
+        f"/api/support/conversations/{ticket['id']}"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": ticket["id"]}
+    remaining = support_client.get("/api/support/conversations").json()
+    assert all(item["id"] != ticket["id"] for item in remaining)
+    assert support_client.delete(
+        f"/api/support/conversations/{ticket['id']}"
+    ).status_code == 404

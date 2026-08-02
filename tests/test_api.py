@@ -75,19 +75,17 @@ def test_chat_streams_tokens_then_trace(client):
         ],
     )
 
-    with (
-        patch("api.main.graph.stream", return_value=_fake_stream()),
-        patch(
-            "api.main.graph.get_state",
-            side_effect=[
-                _fake_state(messages=[]),  # before turn (prior_msg_count = 0)
-                _fake_state(  # after turn
-                    messages=[fake_ai],
-                    last_sql="SELECT * FROM orders LIMIT 1",
-                ),
-            ],
+    fake_graph = MagicMock()
+    fake_graph.stream.return_value = _fake_stream()
+    fake_graph.get_state.side_effect = [
+        _fake_state(messages=[]),  # before turn (prior_msg_count = 0)
+        _fake_state(  # after turn
+            messages=[fake_ai],
+            last_sql="SELECT * FROM orders LIMIT 1",
         ),
-    ):
+    ]
+
+    with patch("api.main._get_agent_graph", return_value=fake_graph):
         with client.stream(
             "POST",
             "/api/chat",
@@ -115,6 +113,30 @@ def test_chat_streams_tokens_then_trace(client):
 def test_chat_validates_payload(client):
     r = client.post("/api/chat", json={"message": "", "session_id": "s1"})
     assert r.status_code == 422
+
+
+def test_chat_degrades_cleanly_when_agent_runtime_is_not_configured(client):
+    with patch(
+        "api.main._get_agent_graph",
+        side_effect=RuntimeError("provider configuration missing"),
+    ):
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={"message": "where is my order?", "session_id": "s1"},
+        ) as response:
+            lines = [json.loads(line) for line in response.iter_lines() if line]
+
+    assert response.status_code == 200
+    assert lines == [
+        {
+            "type": "error",
+            "message": (
+                "The provider-backed agent is not configured. "
+                "The database support demo is still available."
+            ),
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------

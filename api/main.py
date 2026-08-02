@@ -3,6 +3,7 @@ FastAPI surface for the Orion agent.
 
 Endpoints:
   GET  /api/health      → liveness probe
+  GET  /api/support/*   → database-backed customers, products, and conversations
   POST /api/chat        → streamed NDJSON: token events + final trace event
   POST /api/transcribe  → multipart audio upload → {"text": "..."}
   POST /api/tts         → {"text": "..."} → audio/mpeg bytes
@@ -10,14 +11,15 @@ Endpoints:
 The agent core (LangGraph + tools + guard) is unchanged. This module is a thin
 HTTP wrapper around `agent.graph.graph` and `agent.voice`.
 
-Per-session conversation history is held by LangGraph's MemorySaver
-checkpointer keyed by `session_id` (passed as `thread_id`).
+Per-session conversation history is held by LangGraph's SQLite checkpointer,
+keyed by `session_id` (passed as `thread_id`).
 """
 
 import json
 import logging
 import os
 import time
+from functools import lru_cache
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -28,12 +30,26 @@ from langchain_core.messages import AIMessage, HumanMessage
 load_dotenv()
 
 from agent import voice  # noqa: E402
-from agent.graph import graph  # noqa: E402
 from api.schemas import (  # noqa: E402
     ChatRequest,
+    CustomerMessageRequest,
     HealthResponse,
+    SupportReplyRequest,
     TranscribeResponse,
     TtsRequest,
+)
+from api.support_store import (  # noqa: E402
+    delete_conversation,
+    get_demo_overview,
+    list_conversations,
+    list_customers,
+    list_products,
+    lookup_customer,
+    mark_conversation_read,
+    reset_demo_conversations,
+    resolve_conversation_by_support,
+    send_customer_message,
+    send_support_reply,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,13 +59,24 @@ GUARD_CORRECTION_MARKER = "Rewrite using only data"
 
 app = FastAPI(title="Orion Agent API", version="0.1.0")
 
+
+@lru_cache(maxsize=1)
+def _get_agent_graph():
+    """Load provider-backed agent dependencies only when /api/chat is used."""
+    from agent.graph import graph
+
+    return graph
+
 # CORS — Next.js dev server on :3500; API on :8088. Override via env for prod.
-_origins = os.getenv("CORS_ORIGINS", "http://localhost:3500").split(",")
+_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3500,http://127.0.0.1:3500",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins if o.strip()],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -57,6 +84,85 @@ app.add_middleware(
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+# ---------------------------------------------------------------------------
+# /api/support — persistent demo CRM and conversations
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/support/customers")
+def support_customers() -> list[dict]:
+    return list_customers()
+
+
+@app.get("/api/support/customers/lookup")
+def support_customer_lookup(identifier: str) -> dict:
+    customer = lookup_customer(identifier)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+@app.get("/api/support/products")
+def support_products() -> list[dict]:
+    return list_products()
+
+
+@app.get("/api/support/demo/overview")
+def support_demo_overview() -> dict:
+    return get_demo_overview()
+
+
+@app.get("/api/support/conversations")
+def support_conversations() -> list[dict]:
+    return list_conversations()
+
+
+@app.post("/api/support/conversations/messages")
+def support_customer_message(req: CustomerMessageRequest) -> dict:
+    try:
+        return send_customer_message(req.message, req.conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/support/conversations/{conversation_id}/reply")
+def support_reply(conversation_id: str, req: SupportReplyRequest) -> dict:
+    try:
+        return send_support_reply(conversation_id, req.message)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/support/conversations/{conversation_id}/read")
+def support_mark_read(conversation_id: str) -> dict:
+    try:
+        return mark_conversation_read(conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/support/conversations/{conversation_id}/finish")
+def support_finish_conversation(conversation_id: str) -> dict:
+    try:
+        return resolve_conversation_by_support(conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/support/conversations/{conversation_id}")
+def support_delete_conversation(conversation_id: str) -> dict:
+    try:
+        delete_conversation(conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"deleted": conversation_id}
+
+
+@app.post("/api/support/demo/reset")
+def support_demo_reset() -> list[dict]:
+    return reset_demo_conversations()
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +176,20 @@ def _ndjson(obj: dict) -> str:
 
 def _stream_chat(message: str, session_id: str):
     """Generator that yields NDJSON lines: token events then a final trace."""
+    try:
+        graph = _get_agent_graph()
+    except Exception:
+        logger.exception("Agent runtime could not be loaded")
+        yield _ndjson(
+            {
+                "type": "error",
+                "message": (
+                    "The provider-backed agent is not configured. "
+                    "The database support demo is still available."
+                ),
+            }
+        )
+        return
     config = {"configurable": {"thread_id": session_id}}
 
     prior_state = graph.get_state(config)
