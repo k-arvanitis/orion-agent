@@ -20,6 +20,31 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ## Demo
 
+### Run the complete portfolio demo
+
+```bash
+make demo
+```
+
+Then open:
+
+- `http://localhost:3500/customer` — what the customer sees
+- `http://localhost:3500/support` — the support operator workspace
+- `http://localhost:8088/docs` — interactive FastAPI documentation
+
+`http://localhost:3500` redirects directly to the customer chat.
+
+The reliable demo path needs no paid AI-provider keys. It uses a deterministic
+resolution policy over a persistent SQL CRM plus a local Qdrant vector index
+over the bundled policy documents. A reviewer can always test identity matching,
+policy retrieval, automatic resolution, human handoff, and support replies.
+The provider-backed LangGraph/RAG/Text-to-SQL endpoints load lazily when their
+environment variables are configured.
+
+See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
+The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
+to the recurring requirements in the local August 2026 job-market workbook.
+
 
 https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
@@ -33,7 +58,12 @@ https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
 **What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests trigger a single escalation flow: a Slack alert with the full order context goes to the support team, and a confirmation email goes to the customer via Gmail. Both fire independently — if Slack is down, the email still sends. The agent never silently drops a ticket.
 
-Built on a fictional Brazilian e-commerce store (ShopNova) using the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). Policy documents are synthetic (AI-generated) and modelled on real Brazilian e-commerce regulations. Order data is real.
+Built around a fictional Brazilian e-commerce store (ShopNova). The guided
+customer/support demo uses clearly fictional CRM records seeded into a real SQL
+schema so it is safe and repeatable. The provider-backed agent can separately
+query the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+in Supabase. Policy documents are synthetic and modelled on Brazilian
+e-commerce regulations.
 
 ---
 
@@ -110,7 +140,7 @@ The agent runs a ReAct loop: it decides which tool(s) to call, executes them, an
 | Component          | Technology                                                              | Why, not the alternative |
 |--------------------|-------------------------------------------------------------------------|--------------------------|
 | Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Over a plain LangChain chain: LangGraph gives per-thread state, explicit node/edge routing, and clean tool-call visibility — a chain can't isolate session state or expose the trace panel without significant boilerplate |
-| LLM                | Groq — Qwen 3 32B (`qwen/qwen3-32b`)                                    | Over OpenAI: Groq's inference is 3–5× faster at comparable quality for tool use; Qwen 3's Apache 2.0 license means it can be self-hosted with no licensing restrictions — currently served via Groq for speed, swappable to a local vLLM endpoint with a one-line env change |
+| LLM                | OpenRouter — Qwen 3 32B (`qwen/qwen3-32b`)                              | Uses one OpenAI-compatible endpoint while keeping the model and backend swappable through environment variables; Groq remains available as a chat fallback and powers Whisper transcription |
 | RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Over pgvector: Qdrant runs dense + sparse in a single prefetch query with built-in RRF fusion; pgvector requires two separate queries and manual reranking. Over Chroma: Chroma has no sparse/BM25 support |
 | Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Over a hosted embedding API (OpenAI, Cohere): zero latency, no quota, no key, no cost per token — the 133 MB model runs locally via ONNX Runtime at ~2 ms per embed after first-use download |
 | Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | Over dense-only: policy docs contain exact terms ("Boleto", "CPF", "30-day") that semantic search misses under paraphrase. BM25 handles keyword precision; dense handles intent — both are needed |
@@ -207,12 +237,19 @@ cd frontend && npm install && cd ..
 cp .env.example .env
 ```
 
+For this local workspace, `make api`, `make demo`, and `make docker-up` reuse
+only `OPENROUTER_API_KEY` from the sibling `../vault-rag/.env` when it exists.
+Override that path with `OPENROUTER_ENV_FILE=/path/to/.env`, or put the key in
+Orion's own `.env` in a standalone checkout.
+
 Required keys:
 ```
 DATABASE_URL=postgresql://...
 QDRANT_URL=https://...
 QDRANT_API_KEY=...
-GROQ_API_KEY=...
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=...
+GROQ_API_KEY=...             # voice transcription; optional for text-only use
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ELEVENLABS_API_KEY=sk_...      # voice mode only — omit if not using voice
 ```
@@ -241,10 +278,13 @@ make ingest
 ## Quick Start
 
 ```bash
-make stack     # FastAPI on :8088 + Next.js UI on :3500 (recommended)
+make demo      # seed the SQL CRM + start API and UI (recommended)
+make stack     # same services; also ensures the support database is seeded
 # — or run them in separate terminals:
 make api       # FastAPI backend (uvicorn, hot-reload on :8088)
 make ui        # Next.js frontend (dev server on :3500)
+
+make seed-support  # Create/seed the local support CRM database
 
 make run       # CLI agent (no frontend)
 make test      # run all Python tests
@@ -253,7 +293,18 @@ make eval      # run evaluation — results saved to eval/orion-v9.json (skips e
 
 > **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
 
-Open `http://localhost:3500` once both are running.
+Open `http://localhost:3500/support` for the operator workspace and
+`http://localhost:3500/customer` for the customer-side demo.
+
+Open `/customer` and `/support` in separate tabs when presenting the project.
+The compact technical-details panels show the tools and SQL records used for
+each conversation.
+
+The support demo uses a real relational database, not frontend fixtures or
+browser storage. By default it creates `data/orion_support.db` with normalized
+customers, customer tags, products, orders, conversations, and messages. Set
+`SUPPORT_DATABASE_URL` to a valid PostgreSQL/Supabase URL to use the same API
+and UI against a hosted database.
 
 ---
 
@@ -276,7 +327,7 @@ CI runs `uv run ruff check .` before the test suite.
 
 ## Docker
 
-`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (Qdrant Cloud, Supabase, Groq, Slack, Gmail, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
+`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (OpenRouter, Qdrant Cloud, Supabase, Groq Whisper, Slack, Gmail, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
 
 ```bash
 cp .env.example .env       # fill in your keys
@@ -284,7 +335,7 @@ make docker-build          # builds api + ui images
 make docker-up             # starts api (8088) + ui (3500)
 ```
 
-Then open `http://localhost:3500`.
+Then open `http://localhost:3500/customer` and `http://localhost:3500/support`.
 
 > **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
 
@@ -377,7 +428,7 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 
 | Failure                | Behaviour                                                                                                    |
 |------------------------|--------------------------------------------------------------------------------------------------------------|
-| **Groq rate limit**    | 429 error surfaced by LangGraph. Use `--limit 5` for smaller eval runs or switch `AGENT_MODEL` in `.env`.   |
+| **LLM provider error** | Provider errors are surfaced by LangGraph. Check `LLM_PROVIDER`, its API key, and `AGENT_MODEL` in `.env`. |
 | **Qdrant unreachable** | `search_policies` catches the exception and returns *"Policy search temporarily unavailable."* SQL still works. |
 | **Embedding model load fails** | First-use download or ONNX init raises; `search_policies` returns the same *"temporarily unavailable"* fallback. SQL still works. |
 | **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
@@ -393,7 +444,7 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 make test
 ```
 
-47 tests, no external services required — Groq, Qdrant, Supabase, Gmail, Slack, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked.
+49 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, Gmail, Slack, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
 
 | File                       | What it tests                                                          |
 |----------------------------|------------------------------------------------------------------------|
@@ -404,6 +455,7 @@ make test
 | `test_escalation_tool.py`  | Email validation, Slack/Gmail calls, partial failure resilience        |
 | `test_voice.py`            | Whisper transcribe + ElevenLabs synthesize (Groq + ElevenLabs mocked)  |
 | `test_api.py`              | FastAPI endpoints — chat NDJSON stream, transcribe, tts, validation, error paths |
+| `test_support_api.py`      | Seeded SQL CRM, database-derived overview, identity matching, status routing, and persisted support replies |
 
 ---
 
@@ -478,7 +530,7 @@ orion-agent/
 - **In-memory thread state** — `OrionState` is not persisted. A service restart clears all conversation history. For production use, LangGraph's checkpointer interface would need to be wired to a durable store (e.g. Redis or Postgres).
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
-- **Groq rate limits under eval load** — running the full eval concurrently hits Groq's free-tier rate limit. The `--limit` flag exists for this reason. A paid tier or local vLLM endpoint removes this constraint.
+- **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
 - **Gmail OAuth2 is demo-scoped** — the one-time OAuth flow and `token.json` file are appropriate for a portfolio demo. A production deployment would use a service account or a dedicated transactional email provider (e.g. SendGrid).
 
 ---
