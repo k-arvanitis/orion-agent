@@ -50,7 +50,20 @@ Expected result:
   `support_customers`, and `support_orders`.
 - The new conversation appears live in the support view.
 
-### 3. Human approval: complete support handoff
+### 3. Automatic exchange: a second routine case resolved without a human
+
+Click **New conversation**, then ask:
+
+> My email is liam.chen@example.com. Can I exchange the jacket for a larger size?
+
+Expected result:
+
+- Liam is identified from his email and his order is looked up via SQL.
+- The exchange is within policy, so Orion resolves it without escalating.
+- Reinforces that identification + resolution is not a one-off — it works for
+  a different customer, a different policy, and a different tool combination.
+
+### 4. Human escalation: the case Orion won't resolve alone
 
 Click **New conversation**, then send:
 
@@ -72,36 +85,8 @@ Expected result:
 
 - The reply is persisted to the local SQL database.
 - It appears automatically in the customer chat in roughly 1–2 seconds.
-- This demonstrates the complete customer → Orion → support → customer loop.
-
-## Optional questions
-
-### Automatic exchange
-
-> My email is liam.chen@example.com. Can I exchange the jacket for a larger size?
-
-Expected: Liam is identified and Orion resolves the eligible exchange.
-
-### Payment explanation
-
-> My email is sofia.m@example.com. Was I charged twice for my order?
-
-Expected: Orion checks the payment context and explains the temporary
-authorization without escalating.
-
-### Damaged parcel
-
-> Parcel BR-MG-6820-1453 arrived damaged. Can I get a replacement?
-
-Expected: Emma is identified from the parcel number and the case is sent to
-support because damage and replacement approval require a person.
-
-### Shipping policy
-
-> How long does standard shipping normally take?
-
-Expected: Orion resolves the question using policy vector retrieval without
-collecting customer information.
+- Closing beat: Orion knows its own limits, and a human closes the loop in
+  the same thread — the customer never leaves the conversation.
 
 ## What to explain while presenting
 
