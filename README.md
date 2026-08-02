@@ -18,47 +18,16 @@ Built for e-commerce businesses tired of paying agents to answer the same questi
 
 ---
 
-## Demo
+## What it does
 
-### Run the complete portfolio demo
-
-```bash
-make demo
-```
-
-Then open:
-
-- `http://localhost:3500/customer` — what the customer sees
-- `http://localhost:3500/support` — the support operator workspace
-- `http://localhost:8088/docs` — interactive FastAPI documentation
-
-`http://localhost:3500` redirects directly to the customer chat.
-
-The reliable demo path needs no paid AI-provider keys. It uses a deterministic
-resolution policy over a persistent SQL CRM plus a local Qdrant vector index
-over the bundled policy documents. A reviewer can always test identity matching,
-policy retrieval, automatic resolution, human handoff, and support replies.
-The provider-backed LangGraph/RAG/Text-to-SQL endpoints load lazily when their
-environment variables are configured.
-
-See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
-The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
-to the recurring requirements in the local August 2026 job-market workbook.
-
-> **TODO before publishing:** demo video pending re-recording for the
-> `/customer` + `/support` split — add it here once ready.
-
-![Customer chat — order lookup with delivery status](assets/customer-chat.png)
-
-![Support view — queue, live thread, and Orion's handoff summary](assets/support-handoff.png)
-
----
+- Identifies the customer and their order from a live database and resolves order-status questions (delivery, payment, freight) via Text2SQL over Supabase (Olist dataset)
+- Answers policy questions — returns, shipping, payments, warranty — using hybrid dense+sparse RAG over Qdrant, with sources shown to the customer
+- Combines order data and policy rules for mixed questions ("my order arrived late — am I eligible for a refund?")
+- Escalates unresolved or explicitly requested cases to a human teammate, who replies in the same thread from `/support` — the customer never leaves the conversation
+- Strips PII (Brazilian CPF numbers, phone numbers) from every response before it reaches the user
+- Lets a support teammate dictate replies by voice via Groq Whisper transcription
 
 **The problem.** Most e-commerce support tickets are not unique — they're the same handful of questions repeated thousands of times: *where is my order, can I return this, what payment methods do you accept, my package arrived damaged*. Each one costs an agent 5–10 minutes; the customer waits hours for a reply they could have had in seconds.
-
-**What Orion deflects automatically.** Order-status lookups, return/warranty/shipping/payment policy questions, and combined questions that need both ("my order arrived late — am I eligible for a refund?"). The agent answers from your live order database and your policy documents, with sources visible to the customer. No human in the loop.
-
-**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests get handed off, not dropped. The conversation moves to **Waiting for support** with Orion's handoff summary and the matched customer/order context attached; a teammate opens it in `/support`, sees the full thread, and replies directly into it — the customer never leaves the conversation.
 
 Built around a fictional Brazilian e-commerce store (ShopNova). The guided
 customer/support demo uses clearly fictional CRM records seeded into a real SQL
@@ -66,14 +35,6 @@ schema so it is safe and repeatable. The provider-backed agent can separately
 query the real [Olist dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
 in Supabase. Policy documents are synthetic and modelled on Brazilian
 e-commerce regulations.
-
----
-
-## Tracing
-
-Every agent run is traced in LangSmith — tool decisions, latency, and token usage.
-
-![LangSmith trace](assets/langsmith-trace.png)
 
 ---
 
@@ -117,9 +78,25 @@ Every agent run is traced in LangSmith — tool decisions, latency, and token us
 
 Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`) is what `/customer` and `/support` actually talk to: a real SQLite-backed CRM plus a local Qdrant index over the bundled policy docs, so a reviewer can exercise identity matching, policy retrieval, automatic resolution, and human handoff with zero paid API keys. The **provider-backed path** (`/api/chat`) is the full LangGraph ReAct agent — it decides which tool(s) to call, executes them, and synthesizes a response, with `chunks`/`sql` kept in graph state and only the `answer` field reaching the LLM's own context. It loads lazily and only needs its LLM key configured when you want to exercise it directly (e.g. via `/api/docs`) — its absence doesn't block the customer/support demo.
 
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/chat` | POST | Provider-backed LangGraph agent — NDJSON streamed response |
+| `/api/support/customers/lookup` | GET | Identity match for the demo path |
+| `/api/support/conversations` | GET | List conversations (support queue) |
+| `/api/support/conversations/messages` | POST | Post a customer message |
+| `/api/support/conversations/{id}/reply` | POST | Support teammate reply |
+| `/api/support/conversations/{id}/finish` | POST | Resolve/close a conversation |
+| `/api/transcribe` | POST | Groq Whisper voice transcription |
+| `/api/tts` | POST | ElevenLabs text-to-speech (backend only — unused in the current UI) |
+
+Full interactive docs: `http://localhost:8088/docs`.
+
 ---
 
-## Key Engineering Decisions
+## Key engineering decisions
 
 **Structured tool isolation** — tools return `{"answer": ..., "chunks/sql": ...}`. The agent receives only the `answer` field; raw source data is stored in `OrionState` for the UI trace panel. Prevents the LLM from reasoning about schema internals mid-conversation.
 
@@ -131,8 +108,6 @@ Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`
 
 **Partial failure resilience** — every external dependency degrades independently. RAG and SQL tools catch exceptions and return fallback messages without killing the other tool's response. The system never returns a silent empty answer.
 
----
-
 ## Design Decisions
 
 **LangGraph over a simple LangChain chain.** A chain executes linearly and has no native concept of per-session state. Orion needs to remember the last retrieved chunks and SQL result across turns so the UI trace panel is always scoped to the current user. LangGraph's `OrionState` carries that state per `thread_id`, and the node/edge graph makes the routing logic inspectable — adding a new tool is a node, not a patch buried in a prompt.
@@ -142,6 +117,61 @@ Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`
 **Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (120 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
 
 **Evaluation harness over manual spot-checking.** 116 labeled examples across 6 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
+
+---
+
+## Evaluation
+
+The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools — the agent no longer has an escalation tool, so escalation isn't a scored category. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
+
+**Dataset breakdown:**
+
+| Category      | Count | Description                                                                                         |
+|---------------|-------|-----------------------------------------------------------------------------------------------------|
+| `rag_only`    | 40    | Policy questions — returns, warranties, shipping rules, payment terms                               |
+| `sql_only`    | 35    | Order-specific questions — status, delivery dates, payments, freight values                         |
+| `both`        | 30    | Mixed questions requiring both order facts and policy rules (e.g. "my order arrived damaged, can I return it?") |
+| `edge_case`   | 6     | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window         |
+| `adversarial` | 5     | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query            |
+
+**Scoring:**
+
+Each example is scored with up to 4 metrics. RAG metrics only apply to categories where chunks are retrieved.
+
+| Metric             | Method                                                                          | Applies to          |
+|--------------------|-----------------------------------------------------------------------------------|---------------------|
+| Correctness        | LLM-as-judge (Llama 3.3 70B) — scores 0–1 against expected answer                | All                 |
+| Tool selection     | Exact match against expected tool set                                           | All                 |
+| Faithfulness       | Custom claim-level judge — inferred conclusions count as supported; only contradictions and absent facts penalised | `rag_only` only |
+| Answer relevancy   | LLM-as-judge — does the answer directly address the question?                   | All RAG categories  |
+
+Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
+
+**Results (orion-v9, 116 examples):**
+
+| Metric             | Score | Examples |
+|--------------------|-------|----------|
+| Correctness        | 0.87  | 116      |
+| Tool selection     | 0.93  | 111      |
+| Faithfulness       | 0.97  | 44       |
+| Answer relevancy   | 0.94  | 75       |
+
+**Per-category breakdown:**
+
+| Category       | n   | Correctness | Tool selection | Notes |
+|----------------|-----|-------------|----------------|-------|
+| `rag_only`     | 44  | **0.96**    | **1.00**       | Policy questions — near-perfect |
+| `sql_only`     | 36  | **0.85**    | **0.97**       | Order lookups — occasional SQL generation error |
+| `both`         | 31  | **0.78**    | **0.77**       | Mixed queries — primary failure surface |
+| `none`         | 5   | **0.70**    | —              | Adversarial / out-of-scope |
+
+**Where it fails.** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
+
+```bash
+make eval                                    # full run, saves to eval/orion-v9.json
+make eval EVAL_EXPERIMENT=orion-v10          # custom experiment name
+uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
+```
 
 ---
 
@@ -161,8 +191,6 @@ Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`
 | Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Over Streamlit: native token streaming via fetch + ReadableStream, a real component model for the trace sidebar, and voice via the browser MediaRecorder API — none of which are practical in Streamlit |
 | Backend            | FastAPI + uvicorn                                                       | Thin HTTP boundary around the LangGraph agent; the same agent could front a Slack bot or mobile app without changes to agent logic |
 
----
-
 ## Tools
 
 ### `search_policies` — Hybrid RAG over policy documents
@@ -181,15 +209,11 @@ Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
 Human handoff for the provider-backed agent isn't a tool call — it's the same live in-app escalation described above: the demo path moves the conversation to **Waiting for support** and a teammate replies in `/support`.
 
----
-
 ## Guard Layer
 
 Every agent response passes through a PII filter before reaching the user:
 
 **PII stripping** — regex removes Brazilian CPF numbers (`\b\d{3}\.\d{3}\.\d{3}-\d{2}\b`) and phone numbers (`\(\d{2}\)\s*\d{4,5}-\d{4}`) silently.
-
----
 
 ## Voice Mode
 
@@ -200,11 +224,78 @@ In `/support`, the reply box has a mic button: the browser captures audio with t
 - Whisper is an external dependency; a transcription failure surfaces an error and leaves the draft untouched — it doesn't block typing a reply manually.
 - Whisper accuracy on heavily accented English or noisy audio has not been measured against the eval set.
 
----
-
 ## Per-session State
 
 Each conversation is identified by a `thread_id`. The provider-backed LangGraph agent persists its state (`OrionState` — messages, `last_chunks`, `last_sql`) via a `SqliteSaver` checkpointer (`data/checkpoints.db`, override with `CHECKPOINT_DB_PATH`), so conversations survive a service restart and the UI trace panel stays scoped to the current thread. The demo path's conversations live in the support database itself (`data/orion_support.db` by default), independent of the agent checkpointer.
+
+---
+
+## Demo
+
+### Run the complete portfolio demo
+
+```bash
+make demo
+```
+
+Then open:
+
+- `http://localhost:3500/customer` — what the customer sees
+- `http://localhost:3500/support` — the support operator workspace
+- `http://localhost:8088/docs` — interactive FastAPI documentation
+
+`http://localhost:3500` redirects directly to the customer chat.
+
+The reliable demo path needs no paid AI-provider keys. It uses a deterministic
+resolution policy over a persistent SQL CRM plus a local Qdrant vector index
+over the bundled policy documents. A reviewer can always test identity matching,
+policy retrieval, automatic resolution, human handoff, and support replies.
+The provider-backed LangGraph/RAG/Text-to-SQL endpoints load lazily when their
+environment variables are configured.
+
+See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
+The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
+to the recurring requirements in the local August 2026 job-market workbook.
+
+> **TODO before publishing:** demo video pending re-recording for the
+> `/customer` + `/support` split — add it here once ready.
+
+![Customer chat — order lookup with delivery status](assets/customer-chat.png)
+
+![Support view — queue, live thread, and Orion's handoff summary](assets/support-handoff.png)
+
+Every agent run is traced in LangSmith — tool decisions, latency, and token usage.
+
+![LangSmith trace](assets/langsmith-trace.png)
+
+**What Orion deflects automatically.** Order-status lookups, return/warranty/shipping/payment policy questions, and combined questions that need both ("my order arrived late — am I eligible for a refund?"). The agent answers from your live order database and your policy documents, with sources visible to the customer. No human in the loop.
+
+**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests get handed off, not dropped. The conversation moves to **Waiting for support** with Orion's handoff summary and the matched customer/order context attached; a teammate opens it in `/support`, sees the full thread, and replies directly into it — the customer never leaves the conversation.
+
+### Example Questions
+
+**Order lookup (SQL)**
+```
+What is the status of order 416e49799e9260d93c8f636ce6661a55?
+How much did I pay for order 1e8c81805b92ff169971231458670460?
+```
+
+**Policy lookup (RAG)**
+```
+What payment methods does ShopNova accept?
+How long do I have to return a product?
+```
+
+**Multi-tool (SQL + RAG)**
+```
+My order arrived late — am I eligible for a refund?
+I want to return order e481f51cbdc54678b7cc49136f2d6af7. How much will I get back?
+```
+
+**Escalation**
+```
+I want to speak to a real person. My email is customer@example.com.
+```
 
 ---
 
@@ -259,9 +350,7 @@ LANGCHAIN_PROJECT=orion-agent
 make ingest
 ```
 
----
-
-## Quick Start
+### Quick Start
 
 ```bash
 make demo      # seed the SQL CRM + start API and UI (recommended)
@@ -292,9 +381,7 @@ customers, customer tags, products, orders, conversations, and messages. Set
 `SUPPORT_DATABASE_URL` to a valid PostgreSQL/Supabase URL to use the same API
 and UI against a hosted database.
 
----
-
-## Quality Gates
+### Quality Gates
 
 Ruff is configured in `pyproject.toml`:
 
@@ -309,9 +396,7 @@ select = ["E", "F", "I"]
 
 CI runs `uv run ruff check .` before the test suite.
 
----
-
-## Docker
+### Docker
 
 `docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (OpenRouter, Qdrant Cloud, Supabase, Groq Whisper, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
 
@@ -325,91 +410,7 @@ Then open `http://localhost:3500/customer` and `http://localhost:3500/support`.
 
 > **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
 
----
-
-## Example Questions
-
-**Order lookup (SQL)**
-```
-What is the status of order 416e49799e9260d93c8f636ce6661a55?
-How much did I pay for order 1e8c81805b92ff169971231458670460?
-```
-
-**Policy lookup (RAG)**
-```
-What payment methods does ShopNova accept?
-How long do I have to return a product?
-```
-
-**Multi-tool (SQL + RAG)**
-```
-My order arrived late — am I eligible for a refund?
-I want to return order e481f51cbdc54678b7cc49136f2d6af7. How much will I get back?
-```
-
-**Escalation**
-```
-I want to speak to a real person. My email is customer@example.com.
-```
-
----
-
-## Evaluation
-
-The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools — the agent no longer has an escalation tool, so escalation isn't a scored category. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
-
-**Dataset breakdown:**
-
-| Category      | Count | Description                                                                                         |
-|---------------|-------|-----------------------------------------------------------------------------------------------------|
-| `rag_only`    | 40    | Policy questions — returns, warranties, shipping rules, payment terms                               |
-| `sql_only`    | 35    | Order-specific questions — status, delivery dates, payments, freight values                         |
-| `both`        | 30    | Mixed questions requiring both order facts and policy rules (e.g. "my order arrived damaged, can I return it?") |
-| `edge_case`   | 6     | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window         |
-| `adversarial` | 5     | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query           |
-
-**Scoring:**
-
-Each example is scored with up to 4 metrics. RAG metrics only apply to categories where chunks are retrieved.
-
-| Metric             | Method                                                                          | Applies to          |
-|--------------------|---------------------------------------------------------------------------------|---------------------|
-| Correctness        | LLM-as-judge (Llama 3.3 70B) — scores 0–1 against expected answer              | All                 |
-| Tool selection     | Exact match against expected tool set                                           | All                 |
-| Faithfulness       | Custom claim-level judge — inferred conclusions count as supported; only contradictions and absent facts penalised | `rag_only` only |
-| Answer relevancy   | LLM-as-judge — does the answer directly address the question?                   | All RAG categories  |
-
-Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
-
-**Results (orion-v9, 116 examples):**
-
-| Metric             | Score | Examples |
-|--------------------|-------|----------|
-| Correctness        | 0.87  | 116      |
-| Tool selection     | 0.93  | 111      |
-| Faithfulness       | 0.97  | 44       |
-| Answer relevancy   | 0.94  | 75       |
-
-**Per-category breakdown:**
-
-| Category       | n   | Correctness | Tool selection | Notes |
-|----------------|-----|-------------|----------------|-------|
-| `rag_only`     | 44  | **0.96**    | **1.00**       | Policy questions — near-perfect |
-| `sql_only`     | 36  | **0.85**    | **0.97**       | Order lookups — occasional SQL generation error |
-| `both`         | 31  | **0.78**    | **0.77**       | Mixed queries — primary failure surface |
-| `none`         | 5   | **0.70**    | —              | Adversarial / out-of-scope |
-
-**Where it fails.** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
-
-```bash
-make eval                                    # full run, saves to eval/orion-v9.json
-make eval EVAL_EXPERIMENT=orion-v10          # custom experiment name
-uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
-```
-
----
-
-## Failure Modes
+### Failure Modes
 
 | Failure                | Behaviour                                                                                                    |
 |------------------------|--------------------------------------------------------------------------------------------------------------|
@@ -419,9 +420,7 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 | **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
 | **PII in response**        | Guard strips CPF and phone numbers silently before the response reaches the user.                      |
 
----
-
-## Tests
+### Tests
 
 ```bash
 make test
@@ -430,7 +429,7 @@ make test
 46 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
 
 | File                       | What it tests                                                          |
-|----------------------------|------------------------------------------------------------------------|
+|----------------------------|--------------------------------------------------------------------------|
 | `test_guard.py`            | PII stripping (CPF, phone), GuardResult flags                          |
 | `test_routing.py`          | `should_continue` routing logic, checkpointer connection stays open    |
 | `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
@@ -442,7 +441,18 @@ make test
 
 ---
 
-## Project Structure
+## Known limitations
+
+- **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
+- **Provider-backed conversational memory is unreliable across turns** — after the LangGraph agent resolves a policy question, a follow-up in the same thread can get a generic "please share your email" response instead of a contextual reply, even though `OrionState` is persisted via `SqliteSaver`. Tracked in `TODO.md`.
+- **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
+- **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
+- **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
+- **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
+
+---
+
+## Project structure
 
 ```
 orion-agent/
@@ -450,32 +460,32 @@ orion-agent/
 │   ├── config.py             # Centralised config — all model names and defaults
 │   ├── llm.py                # Chat-model factory — OpenRouter preferred, Groq fallback
 │   ├── embeddings.py         # fastembed BGE dense + fastembed BM25 sparse
-│   ├── graph.py              # LangGraph ReAct agent with OrionState (SqliteSaver-backed)
-│   ├── guard.py              # PII filter (CPF, phone)
-│   ├── prompts.py            # System prompt with tool reasoning examples
-│   ├── voice.py              # Voice I/O: Groq Whisper + ElevenLabs
+│   ├── graph.py               # LangGraph ReAct agent with OrionState (SqliteSaver-backed)
+│   ├── guard.py               # PII filter (CPF, phone)
+│   ├── prompts.py             # System prompt with tool reasoning examples
+│   ├── voice.py                # Voice I/O: Groq Whisper + ElevenLabs
 │   └── tools/
 │       ├── rag_tool.py       # Hybrid Qdrant search — returns structured JSON
 │       └── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
 ├── ingestion/
 │   ├── chunker.py            # Markdown → heading-based chunks
-│   ├── ingest.py             # Embed + push to Qdrant (dense + sparse)
+│   ├── ingest.py              # Embed + push to Qdrant (dense + sparse)
 │   ├── load_customer_data.py # CSV → Supabase with automatic type inference
 │   └── seed_support_data.py  # Create/seed the local support CRM database
 ├── eval/
 │   ├── run_eval.py           # Local eval harness (4 metrics, 116 cases, results → JSON)
-│   ├── judge.py              # Custom claim-level LLM judge (faithfulness + answer relevancy)
-│   └── dataset.json          # 116 labeled test cases across 5 categories
+│   ├── judge.py               # Custom claim-level LLM judge (faithfulness + answer relevancy)
+│   └── dataset.json           # 116 labeled test cases across 5 categories
 ├── api/
-│   ├── main.py               # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
-│   ├── schemas.py            # Pydantic request/response models
+│   ├── main.py                # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
+│   ├── schemas.py             # Pydantic request/response models
 │   ├── support_store.py      # SQLite/Postgres CRM + conversations — the live demo path
 │   └── policy_store.py       # Local Qdrant collection over bundled policy chunks
 ├── frontend/                 # Next.js 14 UI — shadcn (base-nova), dark mode
 │   ├── app/
 │   │   ├── layout.tsx        # Root layout + no-flash theme init
-│   │   ├── globals.css       # Tailwind + CSS-variable colour tokens (light/dark)
-│   │   ├── page.tsx          # Redirects to /customer
+│   │   ├── globals.css        # Tailwind + CSS-variable colour tokens (light/dark)
+│   │   ├── page.tsx           # Redirects to /customer
 │   │   ├── customer/page.tsx # Customer chat: identity match, resolve, or request handoff
 │   │   └── support/page.tsx  # Ticket queue + conversation + customer/order sidebar
 │   ├── components/
@@ -486,15 +496,15 @@ orion-agent/
 │   │   ├── VoiceRecorder.tsx     # MediaRecorder mic button (dictation only)
 │   │   ├── OrionLogo.tsx         # Brand mark (shopping-bag glyph, matches ShopNova header)
 │   │   ├── ThemeToggle.tsx       # Light/dark switch (persists to localStorage)
-│   │   └── ui/                   # shadcn primitives (Bubble, Message, Field, Sheet, ...)
+│   │   └── ui/                    # shadcn primitives (Bubble, Message, Field, Sheet, ...)
 │   ├── lib/
 │   │   ├── support-api.ts    # fetch wrappers for /api/support/*
 │   │   ├── support-data.ts   # Ticket/message/customer TS types
-│   │   ├── api.ts            # transcribeAudio() — the one still-used /api/transcribe wrapper
-│   │   └── types.ts          # Trace/Chunk types mirroring api/schemas.py
+│   │   ├── api.ts              # transcribeAudio() — the one still-used /api/transcribe wrapper
+│   │   └── types.ts            # Trace/Chunk types mirroring api/schemas.py
 │   ├── components.json       # shadcn config (base-nova preset)
-│   ├── package.json          # Next 14 + React 18 + Tailwind + shadcn deps
-│   └── Dockerfile            # multi-stage Node build
+│   ├── package.json           # Next 14 + React 18 + Tailwind + shadcn deps
+│   └── Dockerfile              # multi-stage Node build
 ├── tests/
 │   ├── test_guard.py
 │   ├── test_routing.py
@@ -508,23 +518,12 @@ orion-agent/
 │   ├── DEMO_GUIDE.md         # 90-second walkthrough for /customer + /support
 │   └── UPWORK_PORTFOLIO_FIT.md
 ├── data/
-│   └── policies/             # Markdown policy documents (4 files)
+│   └── policies/               # Markdown policy documents (4 files)
 ├── .github/workflows/ci.yml  # CI — runs tests on every push
-├── main.py                   # CLI entry point
-├── Makefile                  # make demo / stack / api / ui / test / eval / ingest / seed-support
+├── main.py                     # CLI entry point
+├── Makefile                    # make demo / stack / api / ui / test / eval / ingest / seed-support
 └── .env.example
 ```
-
----
-
-## Known Limitations
-
-- **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
-- **Provider-backed conversational memory is unreliable across turns** — after the LangGraph agent resolves a policy question, a follow-up in the same thread can get a generic "please share your email" response instead of a contextual reply, even though `OrionState` is persisted via `SqliteSaver`. Tracked in `TODO.md`.
-- **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
-- **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
-- **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
-- **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
 
 ---
 
@@ -535,3 +534,4 @@ Built by Konstantinos Arvanitis — AI engineer specialising in LangGraph agents
 - [LinkedIn](https://www.linkedin.com/in/konstantinos-arvanitis-0248b3246/)
 - [GitHub](https://github.com/k-arvanitis)
 - Email: konstantinos.arvanitis@outlook.com
+</content>
