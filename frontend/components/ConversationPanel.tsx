@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  BotIcon,
   CheckCircle2Icon,
   SendIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -99,7 +99,10 @@ export default function ConversationPanel({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages]);
+    // ponytail: keyed on length, not the array, so the 1.5s ticket poll
+    // (new array reference, same messages) can't yank the scroll position
+    // away from an operator reading earlier history.
+  }, [messages.length]);
 
   async function addMessage(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -193,7 +196,7 @@ export default function ConversationPanel({
             </div>
           ) : (
             <Badge variant="secondary">
-              <BotIcon data-icon="inline-start" />
+              <SparklesIcon data-icon="inline-start" />
               Orion
             </Badge>
           )}
@@ -260,7 +263,7 @@ export default function ConversationPanel({
 
           <Marker>
             <MarkerIcon>
-              <BotIcon />
+              <SparklesIcon />
             </MarkerIcon>
             <MarkerContent>
               {ticket.customer.id === "CUS-VISITOR"
@@ -282,7 +285,7 @@ export default function ConversationPanel({
                 >
                   <Marker variant="border">
                     <MarkerIcon>
-                      <BotIcon />
+                      <SparklesIcon />
                     </MarkerIcon>
                     <MarkerContent>
                       Orion handoff · {message.time}
@@ -306,7 +309,7 @@ export default function ConversationPanel({
                 <MessageAvatar>
                   <Avatar size="sm">
                     <AvatarFallback>
-                      {isCustomer ? ticket.customer.initials : isOrion ? <BotIcon className="size-3.5" /> : "AK"}
+                      {isCustomer ? ticket.customer.initials : isOrion ? <SparklesIcon className="size-3.5" /> : "AK"}
                     </AvatarFallback>
                   </Avatar>
                 </MessageAvatar>

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRightIcon,
-  BotIcon,
   CheckCircle2Icon,
   DatabaseIcon,
   HeadphonesIcon,
@@ -14,6 +13,7 @@ import {
   PackageIcon,
   SendIcon,
   ShoppingBagIcon,
+  SparklesIcon,
   WrenchIcon,
 } from "lucide-react";
 
@@ -287,7 +287,7 @@ export default function CustomerPage() {
           <CardHeader className="shrink-0 py-3.5">
             <div className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-                <BotIcon className="size-4" />
+                <SparklesIcon className="size-4" />
               </div>
               <div>
                 <CardTitle>Chat with ShopNova</CardTitle>
@@ -323,7 +323,7 @@ export default function CustomerPage() {
                             ? (customer?.initials ?? "You")
                             : isAgent
                               ? <HeadphonesIcon className="size-3.5" />
-                              : <BotIcon className="size-3.5" />}
+                              : <SparklesIcon className="size-3.5" />}
                         </AvatarFallback>
                       </Avatar>
                     </MessageAvatar>
@@ -365,7 +365,7 @@ export default function CustomerPage() {
                   <MessageAvatar>
                       <Avatar size="sm">
                       <AvatarFallback>
-                        <BotIcon className="size-3.5" />
+                        <SparklesIcon className="size-3.5" />
                       </AvatarFallback>
                     </Avatar>
                   </MessageAvatar>
