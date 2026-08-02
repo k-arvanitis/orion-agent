@@ -60,7 +60,7 @@ https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
 **What Orion deflects automatically.** Order-status lookups, return/warranty/shipping/payment policy questions, and combined questions that need both ("my order arrived late — am I eligible for a refund?"). The agent answers from your live order database and your policy documents, with sources visible to the customer. No human in the loop.
 
-**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests get handed off, not dropped. In the live demo, the conversation moves to **Waiting for support** with Orion's handoff summary and the matched customer/order context attached; a teammate opens it in `/support`, sees the full thread, and replies directly into it — the customer never leaves the conversation. The provider-backed LangGraph agent (`/api/chat`) additionally fires a real Slack alert + Gmail confirmation independently of each other — if Slack is down, the email still sends.
+**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests get handed off, not dropped. The conversation moves to **Waiting for support** with Orion's handoff summary and the matched customer/order context attached; a teammate opens it in `/support`, sees the full thread, and replies directly into it — the customer never leaves the conversation.
 
 Built around a fictional Brazilian e-commerce store (ShopNova). The guided
 customer/support demo uses clearly fictional CRM records seeded into a real SQL
@@ -106,12 +106,12 @@ Every agent run is traced in LangSmith — tool decisions, latency, and token us
    │  SQLite/Postgres CRM +        │   │  (OrionState per thread_id)      │
    │  conversations — the live     │   │  lazy-loaded, needs an LLM key   │
    │  demo path, no LLM key needed │   │                                  │
-   │                                │   │  ┌─────────┐ ┌────────┐ ┌─────┐ │
-   │  policy_store.py               │   │  │RAG Tool │ │SQL Tool│ │Escal│ │
-   │  local Qdrant over bundled     │   │  │Qdrant   │ │Supabase│ │ate  │ │
-   │  policy chunks for retrieval   │   │  │dense+   │ │Text2SQL│ │Slack│ │
-   │                                │   │  │sparse   │ │        │ │+Gmail│ │
-   └──────────────────────────────┘   │  └─────────┘ └────────┘ └─────┘ │
+   │                                │   │       ┌─────────┐ ┌────────┐    │
+   │  policy_store.py               │   │       │RAG Tool │ │SQL Tool│    │
+   │  local Qdrant over bundled     │   │       │Qdrant   │ │Supabase│    │
+   │  policy chunks for retrieval   │   │       │dense+   │ │Text2SQL│    │
+   │                                │   │       │sparse   │ │        │    │
+   └──────────────────────────────┘   │       └─────────┘ └────────┘    │
                                        │  Guard layer (PII strip) on      │
                                        │  every final response            │
                                        └──────────────────────────────────┘
@@ -131,7 +131,7 @@ Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`
 
 **SELECT-only SQL validation** — generated queries are validated by sqlparse (DML rejection, markdown fence stripping) before execution. On failure, the error is fed back to the LLM for one retry. Natural language SQL injection is tested explicitly in the adversarial eval set.
 
-**Partial failure resilience** — every external dependency degrades independently. Slack and Gmail fire separately in escalation. RAG and SQL tools catch exceptions and return fallback messages without killing the other tool's response. The system never returns a silent empty answer.
+**Partial failure resilience** — every external dependency degrades independently. RAG and SQL tools catch exceptions and return fallback messages without killing the other tool's response. The system never returns a silent empty answer.
 
 ---
 
@@ -158,7 +158,6 @@ Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`
 | Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | Over dense-only: policy docs contain exact terms ("Boleto", "CPF", "30-day") that semantic search misses under paraphrase. BM25 handles keyword precision; dense handles intent — both are needed |
 | Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Over a local Postgres container: managed service with no infra overhead; free tier covers the demo dataset comfortably |
 | Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Over a dedicated Text2SQL library (e.g. vanna): full control over the prompt, schema injection, and retry logic; sqlparse SELECT-only validation adds a safety layer no library provides out of the box |
-| Escalation         | Gmail API (OAuth2) + Slack Incoming Webhooks                            | Both fire independently — if Slack is down the email still sends. Over a single notification channel: two independent signals mean a frustrated customer is never silently dropped |
 | Observability      | LangSmith                                                               | Over logging to stdout: LangSmith captures tool decisions, token counts, and latency per node in a queryable UI — essential for diagnosing the `both`-category failures in eval |
 | Evaluation         | Custom LLM-as-judge harness (fully local, JSON output)                  | Over RAGAS + LangSmith: RAGAS faithfulness incorrectly penalises `both_tools` answers for SQL facts that aren't in the RAG context; LangSmith's free tier trace quota runs out mid-eval. The custom judge uses claim-level faithfulness (inferred conclusions count as supported), writes results to disk after every example, and has no external service dependency |
 | Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Over Streamlit: native token streaming via fetch + ReadableStream, a real component model for the trace sidebar, and voice via the browser MediaRecorder API — none of which are practical in Streamlit |
@@ -182,13 +181,7 @@ Sends the question + full schema context to Qwen 3 32B, which generates a Postgr
 
 Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
-### `escalate` — Human handoff
-
-Triggered when the agent cannot resolve an issue or the customer asks for a human. Fetches full order details from Supabase (with `STRING_AGG` for split-payment orders), sends a confirmation email to the customer via the **Gmail API** (OAuth2), and posts an urgent alert to the operator **Slack** channel. Both calls are independent — if one fails, the other still fires.
-
-![Slack escalation alert](assets/slack-escalation.png)
-
-![Gmail confirmation email](assets/gmail-escalation.png)
+Human handoff for the provider-backed agent isn't a tool call — it's the same live in-app escalation described above: the demo path moves the conversation to **Waiting for support** and a teammate replies in `/support`.
 
 ---
 
@@ -253,7 +246,6 @@ QDRANT_API_KEY=...
 LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=...
 GROQ_API_KEY=...             # voice transcription; optional for text-only use
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ELEVENLABS_API_KEY=sk_...      # voice mode only — omit if not using voice
 ```
 
@@ -263,13 +255,6 @@ LANGCHAIN_API_KEY=...
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_PROJECT=orion-agent
 ```
-
-For Gmail escalation, run the one-time OAuth flow:
-```bash
-uv run --frozen python scripts/auth_gmail.py
-```
-Gmail access tokens refresh automatically when `token.json` contains a refresh
-token; if that refresh token is revoked or missing, re-run the auth script.
 
 ### Ingest policies into Qdrant
 ```bash
@@ -291,7 +276,7 @@ make seed-support  # Create/seed the local support CRM database
 
 make run       # CLI agent (no frontend)
 make test      # run all Python tests
-make eval      # run evaluation — results saved to eval/orion-v9.json (skips escalation)
+make eval      # run evaluation — results saved to eval/orion-v9.json
 ```
 
 > **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
@@ -330,7 +315,7 @@ CI runs `uv run ruff check .` before the test suite.
 
 ## Docker
 
-`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (OpenRouter, Qdrant Cloud, Supabase, Groq Whisper, Slack, Gmail, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
+`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (OpenRouter, Qdrant Cloud, Supabase, Groq Whisper, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
 
 ```bash
 cp .env.example .env       # fill in your keys
@@ -373,7 +358,7 @@ I want to speak to a real person. My email is customer@example.com.
 
 ## Evaluation
 
-The eval harness runs **120 labeled question-answer pairs** (116 scored; 4 escalation cases excluded from quantitative metrics) across 6 categories. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
+The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools — the agent no longer has an escalation tool, so escalation isn't a scored category. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
 
 **Dataset breakdown:**
 
@@ -383,7 +368,6 @@ The eval harness runs **120 labeled question-answer pairs** (116 scored; 4 escal
 | `sql_only`    | 35    | Order-specific questions — status, delivery dates, payments, freight values                         |
 | `both`        | 30    | Mixed questions requiring both order facts and policy rules (e.g. "my order arrived damaged, can I return it?") |
 | `edge_case`   | 6     | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window         |
-| `escalation`  | 4     | Frustrated customers and explicit human handoff requests                                            |
 | `adversarial` | 5     | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query           |
 
 **Scoring:**
@@ -399,7 +383,7 @@ Each example is scored with up to 4 metrics. RAG metrics only apply to categorie
 
 Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
 
-**Results (orion-v9, 116 examples, escalation excluded):**
+**Results (orion-v9, 116 examples):**
 
 | Metric             | Score | Examples |
 |--------------------|-------|----------|
@@ -435,8 +419,6 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 | **Qdrant unreachable** | `search_policies` catches the exception and returns *"Policy search temporarily unavailable."* SQL still works. |
 | **Embedding model load fails** | First-use download or ONNX init raises; `search_policies` returns the same *"temporarily unavailable"* fallback. SQL still works. |
 | **Supabase / DB down** | `query_database` retries once then returns *"Unable to retrieve that information."* RAG still works.         |
-| **Gmail OAuth expired**| Access tokens refresh automatically when `token.json` includes a refresh token; if the refresh token is revoked or missing, `escalate` logs the Gmail error, Slack still fires as the monitoring hook, and `scripts/auth_gmail.py` must be re-run manually. |
-| **Slack webhook invalid** | `escalate` logs a warning, Gmail confirmation still sends.                                               |
 | **PII in response**        | Guard strips CPF and phone numbers silently before the response reaches the user.                      |
 
 ---
@@ -447,7 +429,7 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 make test
 ```
 
-53 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, Gmail, Slack, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
+46 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
 
 | File                       | What it tests                                                          |
 |----------------------------|------------------------------------------------------------------------|
@@ -455,7 +437,6 @@ make test
 | `test_routing.py`          | `should_continue` routing logic, checkpointer connection stays open    |
 | `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
 | `test_rag_tool.py`         | Structured JSON response, chunk metadata, Qdrant / dense-encoder failure fallbacks |
-| `test_escalation_tool.py`  | Email validation, Slack/Gmail calls, partial failure resilience        |
 | `test_voice.py`            | Whisper transcribe + ElevenLabs synthesize (Groq + ElevenLabs mocked)  |
 | `test_llm.py`              | Chat-model factory — OpenRouter vs Groq selection, missing-key errors  |
 | `test_api.py`              | FastAPI endpoints — chat NDJSON stream (lazy agent load + degrade-clean), transcribe, tts, validation, error paths |
@@ -477,8 +458,7 @@ orion-agent/
 │   ├── voice.py              # Voice I/O: Groq Whisper + ElevenLabs
 │   └── tools/
 │       ├── rag_tool.py       # Hybrid Qdrant search — returns structured JSON
-│       ├── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
-│       └── escalation_tool.py # Gmail + Slack human handoff
+│       └── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
 ├── ingestion/
 │   ├── chunker.py            # Markdown → heading-based chunks
 │   ├── ingest.py             # Embed + push to Qdrant (dense + sparse)
@@ -487,7 +467,7 @@ orion-agent/
 ├── eval/
 │   ├── run_eval.py           # Local eval harness (4 metrics, 116 cases, results → JSON)
 │   ├── judge.py              # Custom claim-level LLM judge (faithfulness + answer relevancy)
-│   └── dataset.json          # 120 labeled test cases across 6 categories
+│   └── dataset.json          # 116 labeled test cases across 5 categories
 ├── api/
 │   ├── main.py               # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
 │   ├── schemas.py            # Pydantic request/response models
@@ -522,7 +502,6 @@ orion-agent/
 │   ├── test_routing.py
 │   ├── test_sql_validation.py
 │   ├── test_rag_tool.py
-│   ├── test_escalation_tool.py
 │   ├── test_voice.py
 │   ├── test_llm.py
 │   ├── test_api.py
@@ -530,8 +509,6 @@ orion-agent/
 ├── docs/
 │   ├── DEMO_GUIDE.md         # 90-second walkthrough for /customer + /support
 │   └── UPWORK_PORTFOLIO_FIT.md
-├── scripts/
-│   └── auth_gmail.py         # One-time Gmail OAuth setup
 ├── data/
 │   └── policies/             # Markdown policy documents (4 files)
 ├── .github/workflows/ci.yml  # CI — runs tests on every push
@@ -550,7 +527,6 @@ orion-agent/
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
-- **Gmail OAuth2 is demo-scoped** — the one-time OAuth flow and `token.json` file are appropriate for a portfolio demo. A production deployment would use a service account or a dedicated transactional email provider (e.g. SendGrid).
 
 ---
 

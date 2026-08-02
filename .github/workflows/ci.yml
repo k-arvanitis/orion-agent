@@ -30,5 +30,4 @@ jobs:
           QDRANT_URL: http://localhost:6333
           QDRANT_API_KEY: dummy
           DATABASE_URL: postgresql://localhost/test
-          OPERATOR_EMAIL: test@example.com
           LANGCHAIN_TRACING_V2: "false"

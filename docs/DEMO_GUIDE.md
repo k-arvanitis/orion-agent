@@ -68,8 +68,8 @@ records were retrieved.
   deterministic, which keeps the portfolio demo usable without paid keys or
   third-party uptime.
 - Provider-backed agent runtime: `/api/chat` uses LangGraph with policy RAG,
-  Text-to-SQL, response guards, tracing, and escalation integrations when the
-  documented environment variables are configured.
+  Text-to-SQL, response guards, and tracing when the documented environment
+  variables are configured.
 
 This separation is deliberate: the demonstration always works, while the
 repository still exposes the production-oriented AI implementation for review.

@@ -15,7 +15,6 @@ Usage
 -----
     uv run python eval/run_eval.py
     uv run python eval/run_eval.py --experiment orion-v2
-    uv run python eval/run_eval.py --skip-escalation
     uv run python eval/run_eval.py --limit 5
 """
 
@@ -65,14 +64,13 @@ TOOL_CATEGORY_MAP = {
     "rag_only": {"search_policies"},
     "both_tools": {"query_database", "search_policies"},
     "both": {"query_database", "search_policies"},
-    "escalation": {"escalate"},
     "adversarial": set(),
 }
 
 FAITHFULNESS_CATEGORIES = {"rag_only"}
 RAG_CATEGORIES = {"rag_only", "both_tools", "both"}
 SCORED_TOOL_CATEGORIES = {
-    "sql_only", "rag_only", "both_tools", "both", "escalation", "adversarial",
+    "sql_only", "rag_only", "both_tools", "both", "adversarial",
 }
 
 # ---------------------------------------------------------------------------
@@ -216,11 +214,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Experiment name — used as output filename prefix.",
     )
     parser.add_argument(
-        "--skip-escalation",
-        action="store_true",
-        help="Skip escalation test cases.",
-    )
-    parser.add_argument(
         "--limit",
         metavar="N",
         type=int,
@@ -240,8 +233,6 @@ def main() -> None:
     print(f"Using Groq ({AGENT_MODEL}) for agent runs.")
 
     examples = json.loads(DATASET_PATH.read_text())
-    if args.skip_escalation:
-        examples = [e for e in examples if e.get("category") != "escalation"]
     if args.limit:
         examples = examples[: args.limit]
 

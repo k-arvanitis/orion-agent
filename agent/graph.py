@@ -36,17 +36,16 @@ from agent import guard
 from agent.config import CHECKPOINT_DB_PATH
 from agent.llm import build_chat_model
 from agent.prompts import SYSTEM_PROMPT
-from agent.tools import escalate, query_database, search_policies
+from agent.tools import query_database, search_policies
 
 logger = logging.getLogger(__name__)
 
 _llm = build_chat_model(max_tokens=2048)
-_llm_with_tools = _llm.bind_tools([search_policies, query_database, escalate])
+_llm_with_tools = _llm.bind_tools([search_policies, query_database])
 
 _TOOLS_BY_NAME = {
     "search_policies": search_policies,
     "query_database": query_database,
-    "escalate": escalate,
 }
 
 

@@ -5,7 +5,7 @@ Two functions:
   - transcribe(audio_bytes) -> str  : Groq Whisper (whisper-large-v3-turbo)
   - synthesize(text)        -> bytes: ElevenLabs (eleven_turbo_v2_5)
 
-The agent core (RAG, Text2SQL, guard, escalation) is unchanged. This module
+The agent core (RAG, Text2SQL, guard) is unchanged. This module
 is a thin I/O wrapper that produces text in (transcribe) and consumes text
 out (synthesize) — voice adds no new reasoning layer, so existing eval
 numbers carry over unchanged.

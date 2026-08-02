@@ -72,14 +72,6 @@ VOICE_TTS_MODEL: str = os.getenv("VOICE_TTS_MODEL", "eleven_turbo_v2_5")
 VOICE_TTS_VOICE_ID: str = os.getenv("VOICE_TTS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
 
 # ---------------------------------------------------------------------------
-# Escalation
-# ---------------------------------------------------------------------------
-
-# Operator email that receives escalation alerts.
-# Override with: OPERATOR_EMAIL=real-team@yourcompany.com
-OPERATOR_EMAIL: str = os.getenv("OPERATOR_EMAIL", "support-team@shopnova.com.br")
-
-# ---------------------------------------------------------------------------
 # Checkpointing
 # ---------------------------------------------------------------------------
 

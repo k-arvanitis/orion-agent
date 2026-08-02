@@ -22,7 +22,7 @@ help:
 	@echo "  make stack        - Start API + UI together (foreground; Ctrl-C stops both)"
 	@echo "  make demo         - Start the portfolio demo with its local SQLite database"
 	@echo "  make test         - Run all Python tests"
-	@echo "  make eval         - Run LangSmith evaluation (skips escalation)"
+	@echo "  make eval         - Run LangSmith evaluation"
 	@echo "  make ingest       - Embed and push policy chunks to Qdrant"
 	@echo "  make seed-support - Create/seed the support CRM database"
 	@echo "  make docker-build - Build Docker images (api + ui)"
@@ -52,7 +52,7 @@ test:
 EVAL_EXPERIMENT ?= orion-v5
 
 eval:
-	@$(load_openrouter_key) nohup uv run --frozen python eval/run_eval.py --skip-escalation --experiment $(EVAL_EXPERIMENT) > eval.log 2>&1 & echo "Eval PID $$! — tailing eval.log (Ctrl-C to detach, eval keeps running)"; tail -f eval.log
+	@$(load_openrouter_key) nohup uv run --frozen python eval/run_eval.py --experiment $(EVAL_EXPERIMENT) > eval.log 2>&1 & echo "Eval PID $$! — tailing eval.log (Ctrl-C to detach, eval keeps running)"; tail -f eval.log
 
 ingest:
 	uv run --frozen python -m ingestion.chunker data/policies
