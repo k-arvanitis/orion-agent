@@ -4,20 +4,25 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8088:8088"
     env_file: .env
     environment:
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3500
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      SUPPORT_DATABASE_URL: sqlite:////app/data/orion_support.db
+    volumes:
+      - ./data:/app/data
 
   ui:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3500:3500"
     environment:
       # The browser needs a URL it can reach from the host, so this stays
       # localhost (not the api service name) — Next.js makes browser-side calls.
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8088
     depends_on:
       - api

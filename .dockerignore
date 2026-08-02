@@ -6,5 +6,12 @@ __pycache__/
 token.json
 credentials.json
 data/customer-data/
-data/output/
+data/output/*
+!data/output/document-chunks.json
 .git/
+frontend/node_modules/
+frontend/.next/
+frontend/.tsbuildinfo
+.pytest_cache/
+eval/*.json
+eval/*.log
