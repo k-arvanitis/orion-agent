@@ -382,8 +382,8 @@ export default function CustomerPage() {
                 <Alert>
                   <AlertTitle>Your message was sent to a support teammate</AlertTitle>
                   <AlertDescription>
-                    Please wait here for Alex Kim’s reply. Your conversation and order
-                    details have already been shared with them.
+                    Please wait here for our support team's reply. Your conversation and
+                    order details have already been shared with them.
                   </AlertDescription>
                 </Alert>
               )}
