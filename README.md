@@ -1,10 +1,10 @@
 # Orion — AI Customer Support Agent
 
-**Orion handles the majority of e-commerce support queries automatically** — order status lookups, return and policy questions, and combined queries that need both — with sources visible to the customer and a clean human escalation path when needed. In structured eval across 116 labeled examples: **87% correctness, 93% correct tool routing**.
+**Orion is a live AI support agent with a real human handoff** — a customer chats with Orion in `/customer`; Orion identifies them and their order from a database, resolves routine order-status and policy questions on the spot with sources shown, and hands unresolved cases to a support teammate who replies in the same thread from `/support`. In structured eval of the provider-backed agent core across 116 labeled examples: **87% correctness, 93% correct tool routing**.
 
-Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion handles order lookups against a live database, policy questions over your documents, and frustrated-customer escalation to Slack + email — all without a human in the loop. No headcount increase required.
+Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion resolves the repetitive tier-1 volume automatically and hands the rest to a person without the customer ever leaving the conversation or repeating themselves.
 
-**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want to automate tier-1 tickets without adding headcount.
+**Who this is for:** E-commerce businesses handling repetitive support volume — order status, returns, policy questions — who want most tickets resolved automatically and a clean handoff for the ones that need a person.
 
 [![CI](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/k-arvanitis/orion-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -46,6 +46,10 @@ The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
 to the recurring requirements in the local August 2026 job-market workbook.
 
 
+> **TODO before publishing:** the video and screenshot below predate the
+> `/customer` + `/support` split and still show the old single-page chat UI.
+> Replace with the newly recorded demo and a current screenshot before pushing.
+
 https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
 ![Chat UI with trace panel](assets/chat-ui.png)
@@ -56,7 +60,7 @@ https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
 
 **What Orion deflects automatically.** Order-status lookups, return/warranty/shipping/payment policy questions, and combined questions that need both ("my order arrived late — am I eligible for a refund?"). The agent answers from your live order database and your policy documents, with sources visible to the customer. No human in the loop.
 
-**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests trigger a single escalation flow: a Slack alert with the full order context goes to the support team, and a confirmation email goes to the customer via Gmail. Both fire independently — if Slack is down, the email still sends. The agent never silently drops a ticket.
+**What it escalates — and how.** Frustrated customers, unresolvable issues, and explicit "I want a human" requests get handed off, not dropped. In the live demo, the conversation moves to **Waiting for support** with Orion's handoff summary and the matched customer/order context attached; a teammate opens it in `/support`, sees the full thread, and replies directly into it — the customer never leaves the conversation. The provider-backed LangGraph agent (`/api/chat`) additionally fires a real Slack alert + Gmail confirmation independently of each other — if Slack is down, the email still sends.
 
 Built around a fictional Brazilian e-commerce store (ShopNova). The guided
 customer/support demo uses clearly fictional CRM records seeded into a real SQL
@@ -78,34 +82,42 @@ Every agent run is traced in LangSmith — tool decisions, latency, and token us
 ## Architecture
 
 ```
-┌──────────────────────────┐                 ┌──────────────────────────────────┐
-│   Next.js 14 frontend    │                 │   FastAPI backend (uvicorn)      │
-│   (TypeScript + Tailwind)│                 │                                  │
-│                          │                 │  POST /api/chat  → NDJSON stream │
-│  ChatPanel ──────────────┼── fetch+stream ─►   {token} ... {token} {trace}   │
-│  VoiceRecorder           │                 │  POST /api/transcribe (multipart)│
-│   (MediaRecorder)        │                 │  POST /api/tts (→ audio/mpeg)    │
-│  TraceSidebar            │                 │                                  │
-└──────────────────────────┘                 └──────────────┬───────────────────┘
-                                                            │
-                                                            ▼
-                              ┌──────────────────────────────────────────────────────┐
-                              │                LangGraph ReAct Agent                  │
-                              │                  (OrionState per thread_id)           │
-                              │                                                       │
-                              │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  │
-                              │  │  RAG Tool    │  │  SQL Tool    │  │ Escalation │  │
-                              │  │ Qdrant Cloud │  │  Supabase    │  │Slack+Gmail │  │
-                              │  │ dense+sparse │  │  Text2SQL    │  │            │  │
-                              │  └──────────────┘  └──────────────┘  └────────────┘  │
-                              │                                                       │
-                              │  ┌────────────────────────────────────────────────┐   │
-                              │  │  Guard Layer (PII strip)                       │   │
-                              │  └────────────────────────────────────────────────┘   │
-                              └──────────────────────────────────────────────────────┘
+┌────────────────────┐        ┌────────────────────┐
+│  /customer (chat)   │        │  /support (queue +  │
+│                     │        │  conversation)      │
+└──────────┬──────────┘        └──────────┬──────────┘
+           │                              │
+           └──────────── fetch (REST) ────┘
+                          │
+                          ▼
+          ┌───────────────────────────────────────────┐
+          │   FastAPI backend (uvicorn, :8088)         │
+          │                                             │
+          │  /api/support/*  → customers, orders,      │
+          │                     conversations, replies  │
+          │  /api/chat        → NDJSON stream (LangGraph)│
+          │  /api/transcribe  → Groq Whisper             │
+          │  /api/tts         → ElevenLabs               │
+          └──────────┬──────────────────────┬───────────┘
+                      │                      │
+                      ▼                      ▼
+   ┌──────────────────────────────┐   ┌─────────────────────────────────┐
+   │  support_store.py             │   │  LangGraph ReAct Agent           │
+   │  SQLite/Postgres CRM +        │   │  (OrionState per thread_id)      │
+   │  conversations — the live     │   │  lazy-loaded, needs an LLM key   │
+   │  demo path, no LLM key needed │   │                                  │
+   │                                │   │  ┌─────────┐ ┌────────┐ ┌─────┐ │
+   │  policy_store.py               │   │  │RAG Tool │ │SQL Tool│ │Escal│ │
+   │  local Qdrant over bundled     │   │  │Qdrant   │ │Supabase│ │ate  │ │
+   │  policy chunks for retrieval   │   │  │dense+   │ │Text2SQL│ │Slack│ │
+   │                                │   │  │sparse   │ │        │ │+Gmail│ │
+   └──────────────────────────────┘   │  └─────────┘ └────────┘ └─────┘ │
+                                       │  Guard layer (PII strip) on      │
+                                       │  every final response            │
+                                       └──────────────────────────────────┘
 ```
 
-The agent runs a ReAct loop: it decides which tool(s) to call, executes them, and synthesizes a response. Tools return structured JSON — the agent sees only the `answer` field, while `chunks` and `sql` are stored in graph state and forwarded to the UI in the final `trace` event. A guard layer runs on every final response before it reaches the user. The frontend is presentation-only: every reasoning step happens behind the FastAPI boundary.
+Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`) is what `/customer` and `/support` actually talk to: a real SQLite-backed CRM plus a local Qdrant index over the bundled policy docs, so a reviewer can exercise identity matching, policy retrieval, automatic resolution, and human handoff with zero paid API keys. The **provider-backed path** (`/api/chat`) is the full LangGraph ReAct agent — it decides which tool(s) to call, executes them, and synthesizes a response, with `chunks`/`sql` kept in graph state and only the `answer` field reaching the LLM's own context. It loads lazily and only needs its LLM key configured when you want to exercise it directly (e.g. via `/api/docs`) — its absence doesn't block the customer/support demo.
 
 ---
 
@@ -190,27 +202,18 @@ Every agent response passes through a PII filter before reaching the user:
 
 ## Voice Mode
 
-The browser captures audio with the native `MediaRecorder` API and posts it to `/api/transcribe`, which forwards to **Groq Whisper** (`whisper-large-v3-turbo`). The transcript runs through the same `/api/chat` flow as typed input, then the response is sent to `/api/tts` and autoplayed via **ElevenLabs** (`eleven_turbo_v2_5`). The agent core is unchanged — voice is an I/O wrapper, so all existing eval numbers carry over.
-
-**Latency.** End-of-speech to start-of-audio under 4 seconds. Typical breakdown:
-
-| Stage                     | Time (typical short clip / response) |
-|---------------------------|--------------------------------------|
-| Whisper (Groq, turbo)     | ~0.5–1.0s                            |
-| Agent (Groq, Qwen 3)      | ~1.0–2.5s                            |
-| ElevenLabs (turbo v2.5)   | ~0.3–0.8s                            |
-| **End-to-end**            | **~2–4s**                            |
+In `/support`, the reply box has a mic button: the browser captures audio with the native `MediaRecorder` API and posts it to `/api/transcribe`, which forwards to **Groq Whisper** (`whisper-large-v3-turbo`) and drops the transcript into the draft so a teammate can dictate a reply instead of typing it. It's dictation, not a voice conversation — the teammate still reviews and sends. `/api/tts` (ElevenLabs) exists on the backend as a standalone endpoint but nothing in the current UI calls it.
 
 **Known limitations**
 
-- Voice adds two external dependencies (Groq Whisper + ElevenLabs). A failure in either degrades to text-only without breaking the agent — Whisper failure shows a banner; TTS failure shows the text response with a warning.
+- Whisper is an external dependency; a transcription failure surfaces an error and leaves the draft untouched — it doesn't block typing a reply manually.
 - Whisper accuracy on heavily accented English or noisy audio has not been measured against the eval set.
 
 ---
 
 ## Per-session State
 
-Each conversation is identified by a `thread_id`. The LangGraph state (`OrionState`) stores messages, `last_chunks`, and `last_sql` per session — so the UI trace panel is always scoped to the current user's conversation and never bleeds between sessions.
+Each conversation is identified by a `thread_id`. The provider-backed LangGraph agent persists its state (`OrionState` — messages, `last_chunks`, `last_sql`) via a `SqliteSaver` checkpointer (`data/checkpoints.db`, override with `CHECKPOINT_DB_PATH`), so conversations survive a service restart and the UI trace panel stays scoped to the current thread. The demo path's conversations live in the support database itself (`data/orion_support.db` by default), independent of the agent checkpointer.
 
 ---
 
@@ -444,17 +447,18 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 make test
 ```
 
-49 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, Gmail, Slack, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
+53 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, Gmail, Slack, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
 
 | File                       | What it tests                                                          |
 |----------------------------|------------------------------------------------------------------------|
 | `test_guard.py`            | PII stripping (CPF, phone), GuardResult flags                          |
-| `test_routing.py`          | `should_continue` routing logic                                        |
+| `test_routing.py`          | `should_continue` routing logic, checkpointer connection stays open    |
 | `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
 | `test_rag_tool.py`         | Structured JSON response, chunk metadata, Qdrant / dense-encoder failure fallbacks |
 | `test_escalation_tool.py`  | Email validation, Slack/Gmail calls, partial failure resilience        |
 | `test_voice.py`            | Whisper transcribe + ElevenLabs synthesize (Groq + ElevenLabs mocked)  |
-| `test_api.py`              | FastAPI endpoints — chat NDJSON stream, transcribe, tts, validation, error paths |
+| `test_llm.py`              | Chat-model factory — OpenRouter vs Groq selection, missing-key errors  |
+| `test_api.py`              | FastAPI endpoints — chat NDJSON stream (lazy agent load + degrade-clean), transcribe, tts, validation, error paths |
 | `test_support_api.py`      | Seeded SQL CRM, database-derived overview, identity matching, status routing, and persisted support replies |
 
 ---
@@ -465,11 +469,12 @@ make test
 orion-agent/
 ├── agent/
 │   ├── config.py             # Centralised config — all model names and defaults
+│   ├── llm.py                # Chat-model factory — OpenRouter preferred, Groq fallback
 │   ├── embeddings.py         # fastembed BGE dense + fastembed BM25 sparse
-│   ├── graph.py              # LangGraph ReAct agent with OrionState
+│   ├── graph.py              # LangGraph ReAct agent with OrionState (SqliteSaver-backed)
 │   ├── guard.py              # PII filter (CPF, phone)
 │   ├── prompts.py            # System prompt with tool reasoning examples
-│   ├── voice.py              # Voice I/O: Groq Whisper + ElevenLabs (UI only)
+│   ├── voice.py              # Voice I/O: Groq Whisper + ElevenLabs
 │   └── tools/
 │       ├── rag_tool.py       # Hybrid Qdrant search — returns structured JSON
 │       ├── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
@@ -477,31 +482,40 @@ orion-agent/
 ├── ingestion/
 │   ├── chunker.py            # Markdown → heading-based chunks
 │   ├── ingest.py             # Embed + push to Qdrant (dense + sparse)
-│   └── load_customer_data.py # CSV → Supabase with automatic type inference
+│   ├── load_customer_data.py # CSV → Supabase with automatic type inference
+│   └── seed_support_data.py  # Create/seed the local support CRM database
 ├── eval/
 │   ├── run_eval.py           # Local eval harness (4 metrics, 116 cases, results → JSON)
 │   ├── judge.py              # Custom claim-level LLM judge (faithfulness + answer relevancy)
 │   └── dataset.json          # 120 labeled test cases across 6 categories
 ├── api/
-│   ├── main.py               # FastAPI app: /api/chat (NDJSON stream), /transcribe, /tts
-│   └── schemas.py            # Pydantic request/response models
-├── frontend/                 # Next.js 14 UI — neutral-slate "front-desk" style, dark mode
+│   ├── main.py               # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
+│   ├── schemas.py            # Pydantic request/response models
+│   ├── support_store.py      # SQLite/Postgres CRM + conversations — the live demo path
+│   └── policy_store.py       # Local Qdrant collection over bundled policy chunks
+├── frontend/                 # Next.js 14 UI — shadcn (base-nova), dark mode
 │   ├── app/
 │   │   ├── layout.tsx        # Root layout + no-flash theme init
 │   │   ├── globals.css       # Tailwind + CSS-variable colour tokens (light/dark)
-│   │   └── page.tsx          # Shell: header, session_id, mounts chat + sidebar
+│   │   ├── page.tsx          # Redirects to /customer
+│   │   ├── customer/page.tsx # Customer chat: identity match, resolve, or request handoff
+│   │   └── support/page.tsx  # Ticket queue + conversation + customer/order sidebar
 │   ├── components/
-│   │   ├── ChatPanel.tsx     # Chat history + input row + voice handler
-│   │   ├── Message.tsx       # Single user/assistant bubble + autoplay audio
-│   │   ├── SampleQuestions.tsx
-│   │   ├── TraceSidebar.tsx  # Tools, SQL, chunks, latency, guard banner
-│   │   ├── VoiceRecorder.tsx # MediaRecorder mic button
-│   │   └── ThemeToggle.tsx   # Light/dark switch (persists to localStorage)
+│   │   ├── ConversationPanel.tsx # Support-side thread: history, reply box, voice dictation
+│   │   ├── CustomerSidebar.tsx   # Customer/order context panel
+│   │   ├── TicketQueue.tsx       # Needs support / Resolved / All ticket list
+│   │   ├── TechnicalDetails.tsx  # Tools called, SQL, retrieved chunks (customer page)
+│   │   ├── VoiceRecorder.tsx     # MediaRecorder mic button (dictation only)
+│   │   ├── OrionLogo.tsx         # Brand mark (shopping-bag glyph, matches ShopNova header)
+│   │   ├── ThemeToggle.tsx       # Light/dark switch (persists to localStorage)
+│   │   └── ui/                   # shadcn primitives (Bubble, Message, Field, Sheet, ...)
 │   ├── lib/
-│   │   ├── api.ts            # fetch wrappers (stream NDJSON, transcribe, tts)
-│   │   └── types.ts          # TS types mirroring api/schemas.py
-│   ├── tailwind.config.ts    # darkMode: "class", ink/surface/brand tokens
-│   ├── package.json          # Next 14 + React 18 + Tailwind
+│   │   ├── support-api.ts    # fetch wrappers for /api/support/*
+│   │   ├── support-data.ts   # Ticket/message/customer TS types
+│   │   ├── api.ts            # transcribeAudio() — the one still-used /api/transcribe wrapper
+│   │   └── types.ts          # Trace/Chunk types mirroring api/schemas.py
+│   ├── components.json       # shadcn config (base-nova preset)
+│   ├── package.json          # Next 14 + React 18 + Tailwind + shadcn deps
 │   └── Dockerfile            # multi-stage Node build
 ├── tests/
 │   ├── test_guard.py
@@ -510,15 +524,19 @@ orion-agent/
 │   ├── test_rag_tool.py
 │   ├── test_escalation_tool.py
 │   ├── test_voice.py
-│   └── test_api.py
-├── ui/
+│   ├── test_llm.py
+│   ├── test_api.py
+│   └── test_support_api.py
+├── docs/
+│   ├── DEMO_GUIDE.md         # 90-second walkthrough for /customer + /support
+│   └── UPWORK_PORTFOLIO_FIT.md
 ├── scripts/
 │   └── auth_gmail.py         # One-time Gmail OAuth setup
 ├── data/
 │   └── policies/             # Markdown policy documents (4 files)
 ├── .github/workflows/ci.yml  # CI — runs tests on every push
 ├── main.py                   # CLI entry point
-├── Makefile                  # make run / ui / test / eval / ingest
+├── Makefile                  # make demo / stack / api / ui / test / eval / ingest / seed-support
 └── .env.example
 ```
 
@@ -527,7 +545,8 @@ orion-agent/
 ## Known Limitations
 
 - **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
-- **In-memory thread state** — `OrionState` is not persisted. A service restart clears all conversation history. For production use, LangGraph's checkpointer interface would need to be wired to a durable store (e.g. Redis or Postgres).
+- **Provider-backed conversational memory is unreliable across turns** — after the LangGraph agent resolves a policy question, a follow-up in the same thread can get a generic "please share your email" response instead of a contextual reply, even though `OrionState` is persisted via `SqliteSaver`. Tracked in `TODO.md`.
+- **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
