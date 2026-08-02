@@ -45,14 +45,12 @@ See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
 The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
 to the recurring requirements in the local August 2026 job-market workbook.
 
+> **TODO before publishing:** demo video pending re-recording for the
+> `/customer` + `/support` split — add it here once ready.
 
-> **TODO before publishing:** the video and screenshot below predate the
-> `/customer` + `/support` split and still show the old single-page chat UI.
-> Replace with the newly recorded demo and a current screenshot before pushing.
+![Customer chat — order lookup with delivery status](assets/customer-chat.png)
 
-https://github.com/user-attachments/assets/de0d3f96-0fbd-4848-936f-9a1b0457f804
-
-![Chat UI with trace panel](assets/chat-ui.png)
+![Support view — queue, live thread, and Orion's handoff summary](assets/support-handoff.png)
 
 ---
 
