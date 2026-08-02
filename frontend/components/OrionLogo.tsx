@@ -1,4 +1,4 @@
-import { SparklesIcon } from "lucide-react";
+import { ShoppingBagIcon } from "lucide-react";
 
 export default function OrionLogo() {
   return (
@@ -7,7 +7,7 @@ export default function OrionLogo() {
       role="img"
       aria-label="Orion"
     >
-      <SparklesIcon className="size-[18px]" />
+      <ShoppingBagIcon className="size-[18px]" />
     </span>
   );
 }
