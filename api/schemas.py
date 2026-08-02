@@ -27,19 +27,3 @@ class CustomerMessageRequest(BaseModel):
 
 class SupportReplyRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
-
-
-class Chunk(BaseModel):
-    source: str
-    heading: str
-    content: str
-
-
-class TraceEvent(BaseModel):
-    """Sent as the final NDJSON line on the /api/chat stream."""
-
-    tools: list[str]
-    sql: str | None = None
-    chunks: list[Chunk] | None = None
-    latency: float
-    guard_fired: bool

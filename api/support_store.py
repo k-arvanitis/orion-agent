@@ -676,15 +676,6 @@ def list_conversations() -> list[dict]:
         return [_conversation_payload(conn, row) for row in rows]
 
 
-def get_conversation(conversation_id: str) -> dict | None:
-    initialize_database()
-    with _get_engine().connect() as conn:
-        row = conn.execute(
-            select(conversations).where(conversations.c.id == conversation_id)
-        ).first()
-        return _conversation_payload(conn, row) if row else None
-
-
 def _is_policy_question(content: str) -> bool:
     normalized = content.lower().strip()
     if "policy" in normalized:
