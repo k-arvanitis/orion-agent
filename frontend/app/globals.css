@@ -2,54 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-  --ink-50: 248 250 252;
-  --ink-100: 241 245 249;
-  --ink-200: 226 232 240;
-  --ink-300: 203 213 225;
-  --ink-400: 148 163 184;
-  --ink-500: 100 116 139;
-  --ink-600: 71 85 105;
-  --ink-700: 51 65 85;
-  --ink-800: 30 41 59;
-  --ink-900: 15 23 42;
-  --surface: 255 255 255;
-  --brand-strong: 21 94 117;
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: #f8f7ff;
+    --foreground: #241b35;
+    --card: #ffffff;
+    --card-foreground: #241b35;
+    --popover: #ffffff;
+    --popover-foreground: #241b35;
+    --primary: #7c3aed;
+    --primary-foreground: #ffffff;
+    --secondary: #f0edff;
+    --secondary-foreground: #4c3670;
+    --muted: #f4f2fa;
+    --muted-foreground: #746b83;
+    --accent: #ede9fe;
+    --accent-foreground: #5b21b6;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #e7e2f1;
+    --input: #d9d2e7;
+    --ring: #7c3aed;
+    --sidebar: #fbfaff;
+    --sidebar-foreground: #241b35;
+    --sidebar-primary: #7c3aed;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f0edff;
+    --sidebar-accent-foreground: #4c1d95;
+    --sidebar-border: #e7e2f1;
+    --sidebar-ring: #7c3aed;
+    --success: #eaf8f2;
+    --success-foreground: #147257;
+    --warning: #fff5dc;
+    --warning-foreground: #8a5a08;
+    --coral: #fff0ed;
+    --coral-foreground: #b5442b;
+    --note: #f5f1ff;
+    --note-foreground: #4c2b75;
+    --note-border: #d9ccf5;
+    --radius: 0.75rem;
+    --font-heading: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: #171120;
+    --foreground: #f7f2ff;
+    --card: #21182c;
+    --card-foreground: #f7f2ff;
+    --popover: #271c34;
+    --popover-foreground: #f7f2ff;
+    --primary: #a78bfa;
+    --primary-foreground: #251442;
+    --secondary: #332542;
+    --secondary-foreground: #eee5fa;
+    --muted: #30243d;
+    --muted-foreground: #b9acc8;
+    --accent: #3a2860;
+    --accent-foreground: #ede9fe;
+    --destructive: #f87171;
+    --destructive-foreground: #311313;
+    --border: #443451;
+    --input: #594665;
+    --ring: #a78bfa;
+    --sidebar: #1c1525;
+    --sidebar-foreground: #f7f2ff;
+    --sidebar-primary: #a78bfa;
+    --sidebar-primary-foreground: #251442;
+    --sidebar-accent: #352641;
+    --sidebar-accent-foreground: #f7f2ff;
+    --sidebar-border: #443451;
+    --sidebar-ring: #a78bfa;
+    --success: #193d31;
+    --success-foreground: #a7f3d0;
+    --warning: #493816;
+    --warning-foreground: #fde68a;
+    --coral: #4b2d21;
+    --coral-foreground: #fdba9a;
+    --note: #322346;
+    --note-foreground: #e9ddff;
+    --note-border: #624b82;
+  }
+
+  * {
+    @apply border-border;
+    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
 }
 
-.dark {
-  color-scheme: dark;
-  --ink-50: 15 23 42;
-  --ink-100: 30 41 59;
-  --ink-200: 51 65 85;
-  --ink-300: 71 85 105;
-  --ink-400: 100 116 139;
-  --ink-500: 148 163 184;
-  --ink-600: 203 213 225;
-  --ink-700: 226 232 240;
-  --ink-800: 241 245 249;
-  --ink-900: 248 250 252;
-  --surface: 30 41 59;
-  --brand-strong: 103 232 249;
-}
-
-html,
-body {
-  height: 100%;
-}
-
-body {
-  background: rgb(var(--ink-50));
-  color: rgb(var(--ink-900));
-  -webkit-font-smoothing: antialiased;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgb(var(--ink-300));
-  border-radius: 3px;
+@layer utilities {
+  .scrollbar-warm {
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
+  }
 }

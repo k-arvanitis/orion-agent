@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MoonIcon, SunIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -16,18 +20,26 @@ export default function ThemeToggle() {
     try {
       localStorage.setItem("theme", next ? "dark" : "light");
     } catch {
-      /* ignore — private mode etc. */
+      // Theme persistence is optional in restricted browser contexts.
     }
   }
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="rounded-md border border-ink-200 bg-surface px-3 py-1 text-[11px] text-ink-700 hover:bg-ink-100"
-    >
-      {dark ? "☀ Light" : "☾ Dark"}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+          />
+        }
+        onClick={toggle}
+      >
+        {dark ? <SunIcon /> : <MoonIcon />}
+      </TooltipTrigger>
+      <TooltipContent>{dark ? "Light mode" : "Dark mode"}</TooltipContent>
+    </Tooltip>
   );
 }
