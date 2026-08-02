@@ -37,8 +37,12 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from agent.config import DENSE_DIM, QDRANT_COLLECTION  # noqa: E402
-from agent.embeddings import dense_embed, get_qdrant_client, sparse_embed  # noqa: E402
+from orion_agent.agent.config import DENSE_DIM, QDRANT_COLLECTION  # noqa: E402
+from orion_agent.agent.embeddings import (  # noqa: E402
+    dense_embed,
+    get_qdrant_client,
+    sparse_embed,
+)
 
 DEFAULT_COLLECTION = QDRANT_COLLECTION
 DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"

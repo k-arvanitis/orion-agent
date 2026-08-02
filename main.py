@@ -24,7 +24,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-from agent.graph import graph  # noqa: E402 — load_dotenv must run first
+from orion_agent.agent.graph import graph  # noqa: E402 — load_dotenv must run first
 
 
 def run(session_id: str) -> None:

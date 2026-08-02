@@ -23,7 +23,12 @@ import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
     "sql_tool",
-    Path(__file__).parents[1] / "agent" / "tools" / "sql_tool.py",
+    Path(__file__).parents[1]
+    / "src"
+    / "orion_agent"
+    / "agent"
+    / "tools"
+    / "sql_tool.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)

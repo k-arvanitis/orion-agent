@@ -14,7 +14,7 @@ from fastembed import SparseTextEmbedding, TextEmbedding
 from qdrant_client import QdrantClient
 from qdrant_client.models import SparseVector
 
-from agent.config import DENSE_MODEL, SPARSE_MODEL
+from orion_agent.agent.config import DENSE_MODEL, SPARSE_MODEL
 
 _dense_encoder: TextEmbedding | None = None
 _sparse_encoder: SparseTextEmbedding | None = None

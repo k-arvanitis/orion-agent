@@ -44,8 +44,8 @@ load_dotenv()
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["LANGSMITH_TRACING"] = "false"
 
-from agent.config import AGENT_MODEL  # noqa: E402
 from eval.judge import judge_answer  # noqa: E402
+from orion_agent.agent.config import AGENT_MODEL  # noqa: E402
 
 orion_graph = None  # initialised in main()
 
@@ -227,7 +227,7 @@ def main() -> None:
     args = build_parser().parse_args()
 
     global orion_graph
-    from agent.graph import graph as _g
+    from orion_agent.agent.graph import graph as _g
 
     orion_graph = _g
     print(f"Using Groq ({AGENT_MODEL}) for agent runs.")

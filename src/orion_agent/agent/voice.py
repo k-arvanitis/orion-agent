@@ -21,7 +21,7 @@ import os
 from elevenlabs.client import ElevenLabs
 from groq import Groq
 
-from agent.config import (
+from orion_agent.agent.config import (
     VOICE_TRANSCRIBE_MODEL,
     VOICE_TTS_MODEL,
     VOICE_TTS_VOICE_ID,

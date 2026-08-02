@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from agent.graph import graph, should_continue
+from orion_agent.agent.graph import graph, should_continue
 
 
 def test_graph_checkpointer_connection_stays_open():

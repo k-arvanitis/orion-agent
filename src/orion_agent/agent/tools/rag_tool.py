@@ -28,10 +28,10 @@ from langchain_core.tools import tool
 from qdrant_client import QdrantClient
 from qdrant_client.models import Fusion, FusionQuery, Prefetch
 
-from agent.config import QDRANT_COLLECTION
-from agent.embeddings import dense_embed as _dense_embed
-from agent.embeddings import get_qdrant_client
-from agent.embeddings import sparse_embed as _sparse_embed
+from orion_agent.agent.config import QDRANT_COLLECTION
+from orion_agent.agent.embeddings import dense_embed as _dense_embed
+from orion_agent.agent.embeddings import get_qdrant_client
+from orion_agent.agent.embeddings import sparse_embed as _sparse_embed
 
 logger = logging.getLogger(__name__)
 

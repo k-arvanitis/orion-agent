@@ -25,7 +25,7 @@ from langchain_core.tools import tool
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from agent.llm import build_chat_model
+from orion_agent.agent.llm import build_chat_model
 
 logger = logging.getLogger(__name__)
 

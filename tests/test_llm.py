@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agent import llm
+from orion_agent.agent import llm
 
 
 def test_openrouter_builds_openai_compatible_client():

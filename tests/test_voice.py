@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def test_transcribe_returns_text_from_groq():
-    from agent import voice
+    from orion_agent.agent import voice
 
     fake_groq = MagicMock()
     fake_groq.audio.transcriptions.create.return_value = MagicMock(
@@ -43,7 +43,7 @@ def test_transcribe_returns_text_from_groq():
 
 
 def test_transcribe_handles_none_text():
-    from agent import voice
+    from orion_agent.agent import voice
 
     fake_groq = MagicMock()
     fake_groq.audio.transcriptions.create.return_value = MagicMock(text=None)
@@ -58,7 +58,7 @@ def test_transcribe_handles_none_text():
 
 
 def test_synthesize_returns_concatenated_audio_bytes():
-    from agent import voice
+    from orion_agent.agent import voice
 
     fake_eleven = MagicMock()
     fake_eleven.text_to_speech.convert.return_value = iter(
@@ -76,7 +76,7 @@ def test_synthesize_returns_concatenated_audio_bytes():
 
 
 def test_synthesize_propagates_eleven_failure():
-    from agent import voice
+    from orion_agent.agent import voice
 
     fake_eleven = MagicMock()
     fake_eleven.text_to_speech.convert.side_effect = ConnectionError(

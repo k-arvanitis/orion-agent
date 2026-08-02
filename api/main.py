@@ -29,7 +29,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 load_dotenv()
 
-from agent import voice  # noqa: E402
 from api.schemas import (  # noqa: E402
     ChatRequest,
     CustomerMessageRequest,
@@ -51,6 +50,7 @@ from api.support_store import (  # noqa: E402
     send_customer_message,
     send_support_reply,
 )
+from orion_agent.agent import voice  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ app = FastAPI(title="Orion Agent API", version="0.1.0")
 @lru_cache(maxsize=1)
 def _get_agent_graph():
     """Load provider-backed agent dependencies only when /api/chat is used."""
-    from agent.graph import graph
+    from orion_agent.agent.graph import graph
 
     return graph
 

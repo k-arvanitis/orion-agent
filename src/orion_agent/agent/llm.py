@@ -6,7 +6,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
-from agent.config import (
+from orion_agent.agent.config import (
     AGENT_MODEL,
     GROQ_API_KEY,
     LLM_API_BASE,

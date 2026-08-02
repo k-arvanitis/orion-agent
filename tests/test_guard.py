@@ -16,7 +16,8 @@ import importlib.util
 import pathlib
 
 _spec = importlib.util.spec_from_file_location(
-    "guard", pathlib.Path(__file__).parents[1] / "agent" / "guard.py"
+    "guard",
+    pathlib.Path(__file__).parents[1] / "src" / "orion_agent" / "agent" / "guard.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)

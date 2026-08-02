@@ -13,7 +13,7 @@ State includes last_chunks and last_sql so trace data is scoped per session
 (thread_id) rather than shared as module-level globals.
 
 Usage:
-    from agent.graph import graph
+    from orion_agent.agent.graph import graph
 
     response = graph.invoke(
         {"messages": [{"role": "user", "content": "Where is my order?"}]},
@@ -32,11 +32,11 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
 
-from agent import guard
-from agent.config import CHECKPOINT_DB_PATH
-from agent.llm import build_chat_model
-from agent.prompts import SYSTEM_PROMPT
-from agent.tools import query_database, search_policies
+from orion_agent.agent import guard
+from orion_agent.agent.config import CHECKPOINT_DB_PATH
+from orion_agent.agent.llm import build_chat_model
+from orion_agent.agent.prompts import SYSTEM_PROMPT
+from orion_agent.agent.tools import query_database, search_policies
 
 logger = logging.getLogger(__name__)
 

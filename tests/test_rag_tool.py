@@ -39,9 +39,9 @@ def _make_hit(source: str, heading: str, content: str) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-@patch("agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
-@patch("agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
-@patch("agent.tools.rag_tool._qdrant")
+@patch("orion_agent.agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
+@patch("orion_agent.agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
+@patch("orion_agent.agent.tools.rag_tool._qdrant")
 def test_search_returns_json_with_answer_and_chunks(
     mock_qdrant, mock_sparse, mock_dense
 ):
@@ -53,7 +53,7 @@ def test_search_returns_json_with_answer_and_chunks(
         ]
     )
 
-    from agent.tools.rag_tool import search_policies
+    from orion_agent.agent.tools.rag_tool import search_policies
 
     raw = search_policies.invoke({"query": "return policy"})
     data = json.loads(raw)
@@ -66,15 +66,15 @@ def test_search_returns_json_with_answer_and_chunks(
     assert data["chunks"][0]["source"] == "return_policy.md"
 
 
-@patch("agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
-@patch("agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
-@patch("agent.tools.rag_tool._qdrant")
+@patch("orion_agent.agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
+@patch("orion_agent.agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
+@patch("orion_agent.agent.tools.rag_tool._qdrant")
 def test_search_chunk_metadata_is_complete(mock_qdrant, mock_sparse, mock_dense):
     mock_qdrant.return_value.query_points.return_value = MagicMock(
         points=[_make_hit("shipping_policy.md", "Express", "Express ships in 1 day.")]
     )
 
-    from agent.tools.rag_tool import search_policies
+    from orion_agent.agent.tools.rag_tool import search_policies
 
     data = json.loads(search_policies.invoke({"query": "express shipping"}))
 
@@ -89,13 +89,13 @@ def test_search_chunk_metadata_is_complete(mock_qdrant, mock_sparse, mock_dense)
 # ---------------------------------------------------------------------------
 
 
-@patch("agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
-@patch("agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
-@patch("agent.tools.rag_tool._qdrant")
+@patch("orion_agent.agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
+@patch("orion_agent.agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
+@patch("orion_agent.agent.tools.rag_tool._qdrant")
 def test_search_no_results_returns_fallback(mock_qdrant, mock_sparse, mock_dense):
     mock_qdrant.return_value.query_points.return_value = MagicMock(points=[])
 
-    from agent.tools.rag_tool import search_policies
+    from orion_agent.agent.tools.rag_tool import search_policies
 
     data = json.loads(search_policies.invoke({"query": "something obscure"}))
 
@@ -109,11 +109,11 @@ def test_search_no_results_returns_fallback(mock_qdrant, mock_sparse, mock_dense
 
 
 @patch(
-    "agent.tools.rag_tool._dense_embed",
+    "orion_agent.agent.tools.rag_tool._dense_embed",
     side_effect=RuntimeError("dense encoder failed"),
 )
 def test_dense_encoder_failure_returns_user_friendly_message(mock_dense):
-    from agent.tools.rag_tool import search_policies
+    from orion_agent.agent.tools.rag_tool import search_policies
 
     data = json.loads(search_policies.invoke({"query": "warranty"}))
 
@@ -121,9 +121,9 @@ def test_dense_encoder_failure_returns_user_friendly_message(mock_dense):
     assert data["chunks"] == []
 
 
-@patch("agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
-@patch("agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
-@patch("agent.tools.rag_tool._qdrant")
+@patch("orion_agent.agent.tools.rag_tool._dense_embed", return_value=_FAKE_DENSE)
+@patch("orion_agent.agent.tools.rag_tool._sparse_embed", return_value=_FAKE_SPARSE)
+@patch("orion_agent.agent.tools.rag_tool._qdrant")
 def test_qdrant_failure_returns_user_friendly_message(
     mock_qdrant, mock_sparse, mock_dense
 ):
@@ -131,7 +131,7 @@ def test_qdrant_failure_returns_user_friendly_message(
         "Qdrant unreachable"
     )
 
-    from agent.tools.rag_tool import search_policies
+    from orion_agent.agent.tools.rag_tool import search_policies
 
     data = json.loads(search_policies.invoke({"query": "shipping policy"}))
 
