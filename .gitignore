@@ -35,7 +35,7 @@ data/memory.db
 # IDE
 *.code-workspace
 .vscode/
-data/checkpoints.db
+data/checkpoints.db*
 data/orion_support.db
 
 # Local planning docs

@@ -36,16 +36,17 @@ from orion_agent.agent import guard
 from orion_agent.agent.config import CHECKPOINT_DB_PATH
 from orion_agent.agent.llm import build_chat_model
 from orion_agent.agent.prompts import SYSTEM_PROMPT
-from orion_agent.agent.tools import query_database, search_policies
+from orion_agent.agent.tools import escalate_to_human, query_database, search_policies
 
 logger = logging.getLogger(__name__)
 
 _llm = build_chat_model(max_tokens=2048)
-_llm_with_tools = _llm.bind_tools([search_policies, query_database])
+_llm_with_tools = _llm.bind_tools([search_policies, query_database, escalate_to_human])
 
 _TOOLS_BY_NAME = {
     "search_policies": search_policies,
     "query_database": query_database,
+    "escalate_to_human": escalate_to_human,
 }
 
 
@@ -59,6 +60,8 @@ class OrionState(MessagesState):
 
     last_chunks: NotRequired[list[dict]]
     last_sql: NotRequired[str]
+    tools_called: NotRequired[list[str]]
+    escalation: NotRequired[dict | None]
 
 
 # ---------------------------------------------------------------------------
@@ -90,10 +93,13 @@ def tools_node(state: OrionState) -> dict:
     tool_messages = []
     last_chunks: list[dict] = state.get("last_chunks", [])
     last_sql: str = state.get("last_sql", "")
+    tools_called: list[str] = list(state.get("tools_called", []))
+    escalation: dict | None = state.get("escalation")
 
     for tool_call in last.tool_calls:
         tool_fn = _TOOLS_BY_NAME[tool_call["name"]]
         raw = tool_fn.invoke(tool_call["args"])
+        tools_called.append(tool_call["name"])
 
         try:
             data = json.loads(raw)
@@ -102,6 +108,12 @@ def tools_node(state: OrionState) -> dict:
                 last_chunks = data["chunks"]
             if "sql" in data:
                 last_sql = data["sql"]
+            if data.get("escalate"):
+                escalation = {
+                    "subject": data["subject"],
+                    "action_needed": data["action_needed"],
+                    "reason": data["reason"],
+                }
         except (json.JSONDecodeError, TypeError):
             answer = str(raw)
 
@@ -117,6 +129,8 @@ def tools_node(state: OrionState) -> dict:
         "messages": tool_messages,
         "last_chunks": last_chunks,
         "last_sql": last_sql,
+        "tools_called": tools_called,
+        "escalation": escalation,
     }
 
 
@@ -168,3 +182,31 @@ _checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 _checkpointer_context = SqliteSaver.from_conn_string(str(_checkpoint_path))
 _checkpointer = _checkpointer_context.__enter__()
 graph = _builder.compile(checkpointer=_checkpointer)
+
+
+def run_turn(thread_id: str, message: str) -> dict:
+    """
+    Run one customer turn through the agent graph — the entry point used by
+    the `/api/support/*` demo path (api/support_store.py), not just /api/chat.
+
+    Per-turn trace fields are reset before invoking so a prior turn's tool
+    calls or escalation don't leak into a later, unrelated turn on the same
+    thread_id; `messages` (conversation memory) is preserved by the
+    checkpointer as normal.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    graph.update_state(
+        config,
+        {"tools_called": [], "last_chunks": [], "last_sql": "", "escalation": None},
+    )
+    graph.invoke({"messages": [{"role": "user", "content": message}]}, config=config)
+    state = graph.get_state(config).values
+    last = state["messages"][-1]
+    content = last.content
+    return {
+        "response": content if isinstance(content, str) else str(content),
+        "tools_called": state.get("tools_called", []),
+        "last_chunks": state.get("last_chunks", []),
+        "last_sql": state.get("last_sql", ""),
+        "escalation": state.get("escalation"),
+    }

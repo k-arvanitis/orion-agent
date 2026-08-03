@@ -59,24 +59,29 @@ e-commerce regulations.
           │  /api/tts         → ElevenLabs               │
           └──────────┬──────────────────────┬───────────┘
                       │                      │
-                      ▼                      ▼
-   ┌──────────────────────────────┐   ┌─────────────────────────────────┐
-   │  support_store.py             │   │  LangGraph ReAct Agent           │
-   │  SQLite/Postgres CRM +        │   │  (OrionState per thread_id)      │
-   │  conversations — the live     │   │  lazy-loaded, needs an LLM key   │
-   │  demo path, no LLM key needed │   │                                  │
-   │                                │   │       ┌─────────┐ ┌────────┐    │
-   │  policy_store.py               │   │       │RAG Tool │ │SQL Tool│    │
-   │  local Qdrant over bundled     │   │       │Qdrant   │ │Supabase│    │
-   │  policy chunks for retrieval   │   │       │dense+   │ │Text2SQL│    │
-   │                                │   │       │sparse   │ │        │    │
-   └──────────────────────────────┘   │       └─────────┘ └────────┘    │
-                                       │  Guard layer (PII strip) on      │
-                                       │  every final response            │
-                                       └──────────────────────────────────┘
+                      └──────────┬───────────┘
+                                  ▼
+                    ┌─────────────────────────────────┐
+                    │  LangGraph ReAct Agent           │
+                    │  (OrionState per thread_id)      │
+                    │  needs an LLM key                │
+                    │                                   │
+                    │  ┌─────────┐ ┌────────┐ ┌───────┐ │
+                    │  │RAG Tool │ │SQL Tool│ │Escalate│ │
+                    │  │Qdrant   │ │Supabase│ │to human│ │
+                    │  │dense+   │ │Text2SQL│ │        │ │
+                    │  │sparse   │ │        │ │        │ │
+                    │  └─────────┘ └────────┘ └───────┘ │
+                    │  Guard layer (PII strip) on        │
+                    │  every final response              │
+                    └─────────────────────────────────────┘
+                                  │
+                                  ▼
+                    support_store.py (identity match, SQLite/
+                    Postgres CRM + conversation persistence)
 ```
 
-Two independent paths share one FastAPI app. The **demo path** (`/api/support/*`) is what `/customer` and `/support` actually talk to: a real SQLite-backed CRM plus a local Qdrant index over the bundled policy docs, so a reviewer can exercise identity matching, policy retrieval, automatic resolution, and human handoff with zero paid API keys. The **provider-backed path** (`/api/chat`) is the full LangGraph ReAct agent — it decides which tool(s) to call, executes them, and synthesizes a response, with `chunks`/`sql` kept in graph state and only the `answer` field reaching the LLM's own context. It loads lazily and only needs its LLM key configured when you want to exercise it directly (e.g. via `/api/docs`) — its absence doesn't block the customer/support demo.
+One FastAPI app, one agent. `/api/support/*` (what `/customer` and `/support` actually talk to) and `/api/chat` both run through the same LangGraph agent (`orion_agent.agent.graph.run_turn` / `graph.invoke`) — customer/order identity matching stays a deterministic SQL lookup ahead of the agent call, but every response, tool choice, and escalation decision comes from the live agent. There is no scripted fallback path anymore: `/customer` needs `OPENROUTER_API_KEY` or `GROQ_API_KEY` configured and a populated Qdrant index (`make ingest`) to respond.
 
 ### API Endpoints
 
@@ -122,7 +127,14 @@ Full interactive docs: `http://localhost:8088/docs`.
 
 ## Evaluation
 
-The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools — the agent no longer has an escalation tool, so escalation isn't a scored category. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
+The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
+
+> **Stale after this change:** the agent gained a third tool,
+> [`escalate_to_human`](#escalate_to_human--hand-off-to-a-support-teammate) —
+> this dataset predates it and has no escalation category, so the **tool
+> selection: 0.93** figure below no longer reflects the full 3-tool routing
+> surface. Re-run `make eval` against a live LLM key before quoting this
+> number in a pitch.
 
 **Dataset breakdown:**
 
@@ -207,7 +219,11 @@ Sends the question + full schema context to Qwen 3 32B, which generates a Postgr
 
 Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
-Human handoff for the provider-backed agent isn't a tool call — it's the same live in-app escalation described above: the demo path moves the conversation to **Waiting for support** and a teammate replies in `/support`.
+### `escalate_to_human` — hand off to a support teammate
+
+A structured signal tool, not an external call — the agent invokes it when a request needs human approval (refund/cancellation), review before a replacement (damaged/wrong/missing item), or the customer explicitly asks for a person. The demo path (`/api/support/*`) reads the tool call's `subject`/`action_needed`/`reason` arguments to move the conversation to **Waiting for support**, where a teammate replies in `/support`.
+
+Returns `{"answer": "<confirmation for the customer>", "escalate": true, "subject", "action_needed", "reason"}`.
 
 ## Guard Layer
 
@@ -246,12 +262,13 @@ Then open:
 
 `http://localhost:3500` redirects directly to the customer chat.
 
-The reliable demo path needs no paid AI-provider keys. It uses a deterministic
-resolution policy over a persistent SQL CRM plus a local Qdrant vector index
-over the bundled policy documents. A reviewer can always test identity matching,
-policy retrieval, automatic resolution, human handoff, and support replies.
-The provider-backed LangGraph/RAG/Text-to-SQL endpoints load lazily when their
-environment variables are configured.
+The `/customer` and `/support` demo path is driven by the same provider-backed
+LangGraph agent as `/api/chat` — tool calls, escalation decisions, and
+responses all come from the live agent, not a scripted fallback. It needs
+`OPENROUTER_API_KEY` or `GROQ_API_KEY` and a populated Qdrant index
+(`make ingest`) to respond. Customer/order identity matching stays a
+deterministic SQL lookup ahead of the agent call, so `/api/support/*` never
+guesses who it's talking to.
 
 See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
 The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
@@ -479,8 +496,7 @@ orion-agent/
 ├── api/
 │   ├── main.py                # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
 │   ├── schemas.py             # Pydantic request/response models
-│   ├── support_store.py      # SQLite/Postgres CRM + conversations — the live demo path
-│   └── policy_store.py       # Local Qdrant collection over bundled policy chunks
+│   └── support_store.py      # SQLite/Postgres CRM + conversations — the live demo path
 ├── frontend/                 # Next.js 14 UI — shadcn (base-nova), dark mode
 │   ├── app/
 │   │   ├── layout.tsx        # Root layout + no-flash theme init

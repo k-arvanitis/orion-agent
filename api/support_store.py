@@ -34,8 +34,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Connection, Engine
 
-from api.policy_store import search_policy_documents
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DATABASE_URL = f"sqlite:///{ROOT_DIR / 'data' / 'orion_support.db'}"
 
@@ -697,129 +695,83 @@ def _is_policy_question(content: str) -> bool:
     return topic and question
 
 
-def _policy_response(content: str) -> str:
-    normalized = content.lower()
-    if "return" in normalized or "refund" in normalized or "send back" in normalized:
-        answer = (
-            "Most items can be returned within 30 calendar days of confirmed "
-            "delivery if they are unused and include their original packaging and tags."
-        )
-    elif "warranty" in normalized or "broken" in normalized or "defect" in normalized:
-        answer = (
-            "Warranty coverage depends on the product category and covers manufacturing "
-            "defects rather than accidental damage. Electronics have 12 months of "
-            "ShopNova platform coverage."
-        )
-    elif "shipping" in normalized or "delivery" in normalized or "parcel" in normalized:
-        answer = (
-            "Standard shipping normally takes 5–8 business days after dispatch. "
-            "Express shipping takes 1–2 business days when the order and destination qualify."
-        )
-    elif "payment" in normalized or "pay" in normalized:
-        answer = (
-            "ShopNova accepts major credit and debit cards, Boleto Bancário, and "
-            "ShopNova vouchers. Payment timing and instalment rules vary by method."
-        )
-    else:
-        answer = "I found the most relevant section in ShopNova’s policy library."
-    return answer
-
-
-def _build_orion_turn(customer: dict, content: str) -> dict:
-    normalized = content.lower()
+def _run_agent_turn(customer: dict, content: str, thread_id: str) -> dict:
+    """
+    Route a customer message through the real LangGraph agent (orion_agent.agent.graph)
+    and translate its trace into the conversation-record shape the frontend expects
+    (status/subject/action_needed/response/handoff/technical_details).
+    """
     first_name = customer["name"].split(" ")[0]
-    if _is_policy_question(content):
-        documents = search_policy_documents(content)
-        database_details = (
-            _database_technical_details(customer)
-            if customer["id"] != VISITOR_CUSTOMER_ID
-            else {"tools": [], "records": []}
-        )
-        return {
-            "status": "Resolved by Orion",
-            "subject": "Policy question",
-            "action_needed": None,
-            "response": _policy_response(content),
-            "handoff": None,
-            "technical_details": {
-                "tools": [
-                    *database_details["tools"],
-                    {
-                        "name": "policy_vector_search",
-                        "label": "Policy vector search",
-                        "result": f"{len(documents)} chunks",
-                    }
-                ],
-                "records": database_details["records"],
-                "documents": [
-                    {
-                        "source": document["source"],
-                        "heading": document["heading"],
-                        "score": document["score"],
-                    }
-                    for document in documents
-                ],
-            },
-        }
 
-    if not customer["orders"]:
+    if customer["id"] != VISITOR_CUSTOMER_ID and not customer["orders"]:
         raise LookupError(
             "Please share your email, customer ID, order number, or parcel number "
             "so I can find the right order."
         )
 
-    order = customer["orders"][0]
-    technical_details = _database_technical_details(customer)
-    if "cancel" in normalized or "refund" in normalized:
+    from orion_agent.agent.graph import run_turn
+
+    result = run_turn(thread_id, content)
+    tools_called = result["tools_called"]
+    escalation = result["escalation"]
+
+    database_details = (
+        _database_technical_details(customer)
+        if customer["id"] != VISITOR_CUSTOMER_ID
+        else {"tools": [], "records": []}
+    )
+    tool_entries = list(database_details["tools"])
+    documents: list[dict] = []
+    if "search_policies" in tools_called:
+        tool_entries.append(
+            {
+                "name": "policy_vector_search",
+                "label": "Policy vector search",
+                "result": f"{len(result['last_chunks'])} chunks",
+            }
+        )
+        documents = [
+            {"source": chunk["source"], "heading": chunk["heading"]}
+            for chunk in result["last_chunks"]
+        ]
+    if "query_database" in tools_called:
+        tool_entries.append(
+            {
+                "name": "order_database_query",
+                "label": "Order database query",
+                "result": result["last_sql"] or "query executed",
+            }
+        )
+    technical_details = {
+        "tools": tool_entries,
+        "records": database_details["records"],
+        "documents": documents,
+    }
+
+    if escalation:
         return {
             "status": "Waiting for support",
-            "subject": "Refund or cancellation request",
-            "action_needed": "Approve the refund or cancellation request",
-            "response": f"I found order {order['id']}. I can see the request, but a support teammate needs to approve a refund or cancellation. I’ve sent them the conversation and your order details.",
-            "handoff": f"{first_name} requested a refund or cancellation for {order['id']}. Orion matched the customer and order, but approval is required from support.",
+            "subject": escalation["subject"],
+            "action_needed": escalation["action_needed"],
+            "response": result["response"],
+            "handoff": f"{first_name}: {escalation['reason']}",
             "technical_details": technical_details,
         }
-    if any(word in normalized for word in ("wrong", "damag", "broken", "warranty", "missing item", "replacement")):
-        return {
-            "status": "Waiting for support",
-            "subject": "Item needs review",
-            "action_needed": "Review the item issue and approve a replacement",
-            "response": f"I matched parcel {order['parcelId']}. A support teammate needs to review the item issue before a replacement can be approved, so I’ve passed this conversation to them.",
-            "handoff": f"{first_name} reported an item problem for parcel {order['parcelId']}. Support needs to review it and approve the appropriate replacement.",
-            "technical_details": technical_details,
-        }
-    if any(word in normalized for word in ("human", "person", "agent", "support team", "complaint")):
-        return {
-            "status": "Waiting for support",
-            "subject": "Customer requested support",
-            "action_needed": "Read the conversation and reply to the customer",
-            "response": "Of course. I’ve sent this conversation and your matched customer record to our support team. A teammate can continue here.",
-            "handoff": f"{first_name} asked to speak with a person. The customer and latest order were matched successfully.",
-            "technical_details": technical_details,
-        }
-    if any(word in normalized for word in ("exchange", "size", "larger", "smaller")):
-        return {
-            "status": "Resolved by Orion",
-            "subject": "Size exchange",
-            "action_needed": None,
-            "response": f"Your {order['item']} is within the 30-day exchange window. I’ve started the exchange and sent the return instructions to {customer['email']}.",
-            "handoff": None,
-            "technical_details": technical_details,
-        }
-    if any(word in normalized for word in ("charg", "payment", "billed", "authorization")):
-        return {
-            "status": "Resolved by Orion",
-            "subject": "Payment status",
-            "action_needed": None,
-            "response": f"I checked order {order['id']}. There is one completed payment; any second pending entry is a temporary authorization and should disappear within 3–5 business days.",
-            "handoff": None,
-            "technical_details": technical_details,
-        }
+
+    if "search_policies" in tools_called and "query_database" in tools_called:
+        subject = "Order & policy question"
+    elif "query_database" in tools_called:
+        subject = "Order status"
+    elif "search_policies" in tools_called:
+        subject = "Policy question"
+    else:
+        subject = "General question"
+
     return {
         "status": "Resolved by Orion",
-        "subject": "Order status",
+        "subject": subject,
         "action_needed": None,
-        "response": f"Your order is currently {order['status'].lower()}: {order['detail']}. Is there anything else I can help you with regarding your order?",
+        "response": result["response"],
         "handoff": None,
         "technical_details": technical_details,
     }
@@ -904,10 +856,10 @@ def send_customer_message(
 
         customer = _customer_payload(conn, customer_row)
         customer_id = customer["id"]
-        turn = _build_orion_turn(customer, content)
+        target_id = conversation_id if existing else f"DEMO-{uuid4().hex[:8].upper()}"
+        turn = _run_agent_turn(customer, content, thread_id=target_id)
 
         if existing:
-            target_id = conversation_id
             conn.execute(
                 update(conversations)
                 .where(conversations.c.id == target_id)
@@ -922,7 +874,6 @@ def send_customer_message(
                 )
             )
         else:
-            target_id = f"DEMO-{uuid4().hex[:8].upper()}"
             conn.execute(
                 insert(conversations).values(
                     id=target_id,

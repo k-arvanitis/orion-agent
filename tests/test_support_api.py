@@ -1,4 +1,12 @@
-"""Tests for the persistent customer/support demo API."""
+"""Tests for the persistent customer/support demo API.
+
+The demo path (`/api/support/*`) now routes every customer message through
+the real LangGraph agent (`orion_agent.agent.graph.run_turn`). Per CLAUDE.md,
+all external services are mocked in tests — `run_turn` is faked here with a
+small keyword router that mirrors what the real agent's tool-routing prompt
+asks it to do, so these tests exercise support_store.py's translation of a
+graph result into a conversation record, not the LLM itself.
+"""
 
 import os
 import sys
@@ -16,11 +24,59 @@ os.environ.setdefault("DATABASE_URL", "postgresql://localhost/test")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+def _fake_run_turn(thread_id: str, message: str) -> dict:
+    normalized = message.lower()
+
+    if any(word in normalized for word in ("cancel", "refund")):
+        return {
+            "response": "I've passed this conversation to our support team.",
+            "tools_called": [],
+            "last_chunks": [],
+            "last_sql": "",
+            "escalation": {
+                "subject": "Refund or cancellation request",
+                "action_needed": "Approve the refund or cancellation request",
+                "reason": "Customer requested a refund or cancellation.",
+            },
+        }
+
+    if "return policy" in normalized or "policy" in normalized:
+        return {
+            "response": (
+                "Most items can be returned within 30 calendar days of "
+                "confirmed delivery if unused and in original packaging."
+            ),
+            "tools_called": ["search_policies"],
+            "last_chunks": [
+                {
+                    "source": "return_policy.md",
+                    "heading": "Returns",
+                    "content": "30-day return window.",
+                }
+            ],
+            "last_sql": "",
+            "escalation": None,
+        }
+
+    return {
+        "response": (
+            "Your order is currently delayed: Expected Jul 30 · Standard "
+            "shipping. Is there anything else I can help you with regarding "
+            "your order?"
+        ),
+        "tools_called": ["query_database"],
+        "last_chunks": [],
+        "last_sql": "SELECT order_status FROM orders WHERE order_id = :id",
+        "escalation": None,
+    }
+
+
 @pytest.fixture()
-def support_client(tmp_path):
+def support_client(tmp_path, monkeypatch):
     from api.main import app
     from api.support_store import configure_database
 
+    monkeypatch.setattr("orion_agent.agent.graph.run_turn", _fake_run_turn)
     configure_database(f"sqlite:///{tmp_path / 'support.db'}")
     with TestClient(app) as client:
         yield client
@@ -77,22 +133,23 @@ def test_conversation_identifies_customer_and_persists_reply(support_client):
     ticket = matched.json()
     assert ticket["customer"]["name"] == "Maya Torres"
     assert ticket["status"] == "Resolved by Orion"
+    assert ticket["subject"] == "Order status"
     order_reply = ticket["messages"][-1]["content"]
-    assert order_reply == (
-        "Your order is currently delayed: Expected Jul 30 · Standard shipping. "
-        "Is there anything else I can help you with regarding your order?"
-    )
-    assert "Maya" not in order_reply
-    assert "416e49799e9260d93c8f636ce6661a55" not in order_reply
-    assert "BR-SP-8042-1197" not in order_reply
-    assert "support teammate" not in order_reply
+    assert "delayed" in order_reply
+    assert ticket["technicalDetails"]["tools"][-1]["name"] == "order_database_query"
 
     escalated = support_client.post(
         "/api/support/conversations/messages",
         json={"message": "I need a refund.", "conversation_id": ticket["id"]},
     )
     assert escalated.status_code == 200
-    assert escalated.json()["status"] == "Waiting for support"
+    escalated_ticket = escalated.json()
+    assert escalated_ticket["status"] == "Waiting for support"
+    assert escalated_ticket["subject"] == "Refund or cancellation request"
+    assert (
+        escalated_ticket["actionNeeded"]
+        == "Approve the refund or cancellation request"
+    )
 
     replied = support_client.post(
         f"/api/support/conversations/{ticket['id']}/reply",
@@ -139,15 +196,12 @@ def test_policy_question_uses_vector_store_without_customer_identity(support_cli
         {
             "name": "policy_vector_search",
             "label": "Policy vector search",
-            "result": "3 chunks",
+            "result": "1 chunks",
         }
     ]
     assert ticket["technicalDetails"]["records"] == []
     assert ticket["technicalDetails"]["documents"][0]["source"] == "return_policy.md"
-    assert ticket["messages"][-1]["content"] == (
-        "Most items can be returned within 30 calendar days of confirmed delivery "
-        "if they are unused and include their original packaging and tags."
-    )
+    assert "30 calendar days" in ticket["messages"][-1]["content"]
 
 
 def test_policy_visitor_order_request_asks_for_identifier(support_client):
