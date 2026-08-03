@@ -221,7 +221,7 @@ Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
 ### `escalate_to_human` — hand off to a support teammate
 
-A structured signal tool, not an external call — the agent invokes it when a request needs human approval (refund/cancellation), review before a replacement (damaged/wrong/missing item), or the customer explicitly asks for a person. The demo path (`/api/support/*`) reads the tool call's `subject`/`action_needed`/`reason` arguments to move the conversation to **Waiting for support**, where a teammate replies in `/support`.
+A structured signal tool — the agent invokes it when a request needs human approval (refund/cancellation), review before a replacement (damaged/wrong/missing item), or the customer explicitly asks for a person. The demo path (`/api/support/*`) reads the tool call's `subject`/`action_needed`/`reason` arguments to move the conversation to **Waiting for support**, where a teammate replies in `/support`. If `SLACK_WEBHOOK_URL` is configured, it also posts an alert to the operator Slack channel so a teammate doesn't have to poll the queue; unset, escalation still works, it just stays in-app only.
 
 Returns `{"answer": "<confirmation for the customer>", "escalate": true, "subject", "action_needed", "reason"}`.
 
@@ -443,7 +443,7 @@ Then open `http://localhost:3500/customer` and `http://localhost:3500/support`.
 make test
 ```
 
-46 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, ElevenLabs, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
+50 tests, no external services required — OpenRouter/Groq, remote Qdrant, Supabase, ElevenLabs, Slack, the dense encoder, and the FastAPI surface are all mocked or replaced by local test fixtures.
 
 | File                       | What it tests                                                          |
 |----------------------------|--------------------------------------------------------------------------|

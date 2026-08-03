@@ -1,9 +1,9 @@
 """
 Escalation tool — hands a conversation off to a human support teammate.
 
-Unlike search_policies/query_database, this tool has no external dependency
-to fail; it's a structured signal the agent emits when it decides a request
-needs human judgment or approval it cannot grant on its own.
+The escalation signal itself has no external dependency to fail (it's a
+structured payload the agent emits); the only external call is a best-effort
+Slack notification so a teammate doesn't have to poll the queue to find out.
 
 Return format:
   JSON string: {"answer": "<text for LLM>", "escalate": true,
@@ -15,8 +15,28 @@ Return format:
 """
 
 import json
+import logging
 
+import requests
 from langchain_core.tools import tool
+
+from orion_agent.agent.config import SLACK_WEBHOOK_URL
+
+logger = logging.getLogger(__name__)
+
+
+def _notify_slack(subject: str, action_needed: str, reason: str) -> None:
+    if not SLACK_WEBHOOK_URL:
+        logger.info("SLACK_WEBHOOK_URL not set — Slack notification skipped")
+        return
+    text = (
+        f":rotating_light: *Escalation* — {subject}\n{reason}\n"
+        f"*Action needed:* {action_needed}"
+    )
+    try:
+        requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=5)
+    except Exception:
+        logger.error("Failed to post Slack notification", exc_info=True)
 
 
 @tool
@@ -41,6 +61,7 @@ def escalate_to_human(subject: str, action_needed: str, reason: str) -> str:
     Returns:
         JSON string confirming the handoff for the LLM to relay to the customer.
     """
+    _notify_slack(subject, action_needed, reason)
     return json.dumps(
         {
             "answer": (

@@ -78,3 +78,11 @@ VOICE_TTS_VOICE_ID: str = os.getenv("VOICE_TTS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"
 # Path to the SQLite file that persists conversation state across restarts.
 # Set CHECKPOINT_DB_PATH to an absolute path in production.
 CHECKPOINT_DB_PATH: str = os.getenv("CHECKPOINT_DB_PATH", "data/checkpoints.db")
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+# Incoming webhook URL for the operator Slack channel. Optional — if unset,
+# escalate_to_human still works, it just doesn't notify anyone externally.
+SLACK_WEBHOOK_URL: str = os.getenv("SLACK_WEBHOOK_URL", "")
