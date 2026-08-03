@@ -281,6 +281,10 @@ to the recurring requirements in the local August 2026 job-market workbook.
 
 ![Support view — queue, live thread, and Orion's handoff summary](assets/support-handoff.png)
 
+Escalation posts a live alert to the operator Slack channel (`SLACK_WEBHOOK_URL`):
+
+![Slack escalation alert](assets/slack-escalation.png)
+
 Every agent run is traced in LangSmith — tool decisions, latency, and token usage.
 
 ![LangSmith trace](assets/langsmith-trace.png)
