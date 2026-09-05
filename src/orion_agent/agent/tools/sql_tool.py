@@ -70,7 +70,12 @@ def _get_engine():
 def _get_llm() -> BaseChatModel:
     global _llm
     if _llm is None:
-        _llm = build_chat_model()
+        # Without an explicit cap, some OpenRouter backends default the
+        # completion budget to the model's full context window when the
+        # request omits max_tokens, which then exceeds that same window and
+        # 400s. A generated SQL query or its interpretation never needs more
+        # than a few hundred tokens.
+        _llm = build_chat_model(max_tokens=1024)
     return _llm
 
 
