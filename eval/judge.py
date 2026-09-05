@@ -1,11 +1,13 @@
-"""Custom LLM-as-judge for RAG evaluation — claim-level faithfulness.
+"""Custom LLM-as-judge for Orion's eval — one judge model for every metric.
 
-One JSON-only judge call returns faithfulness + answer_relevancy on a 0-1 scale.
+judge_answer      : one JSON call returns faithfulness + answer_relevancy (0-1).
+judge_correctness : one call scores the answer against the expected answer (0-1).
 Faithfulness is graded at the CLAIM level (RAGAS-style): inferred conclusions count
 as supported; only contradictions and absent facts are penalized.
 
 Ported from karvanitis/vault-rag. Defaults:
-  - model:    gpt-4o-mini
+  - model:    gpt-4o-mini (deliberately a different model from the agent, so
+              the agent never grades itself; same judge as vault-rag)
   - base URL: https://api.openai.com/v1
   - API key:  EVAL_JUDGE_API_KEY → OPENAI_API_KEY
 
@@ -25,11 +27,11 @@ import openai
 
 
 def _judge_config() -> tuple[str, str, str]:
-    model = os.getenv("EVAL_JUDGE_MODEL", "llama-3.3-70b-versatile")
-    base = os.getenv("EVAL_JUDGE_API_BASE", "https://api.groq.com/openai/v1")
-    key = os.getenv("EVAL_JUDGE_API_KEY") or os.getenv("GROQ_API_KEY")
+    model = os.getenv("EVAL_JUDGE_MODEL", "gpt-4o-mini")
+    base = os.getenv("EVAL_JUDGE_API_BASE", "https://api.openai.com/v1")
+    key = os.getenv("EVAL_JUDGE_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not key:
-        raise RuntimeError("No judge API key: set EVAL_JUDGE_API_KEY or GROQ_API_KEY")
+        raise RuntimeError("No judge API key: set EVAL_JUDGE_API_KEY or OPENAI_API_KEY")
     return model, base, key
 
 
@@ -127,6 +129,62 @@ _JUDGE_PROMPT = (  # noqa: E501
 )
 
 
+def _client() -> openai.OpenAI:
+    _, base, key = _judge_config()
+    return openai.OpenAI(base_url=base, api_key=key, timeout=60, max_retries=2)
+
+
+_CORRECTNESS_PROMPT = """\
+You are evaluating a customer support AI agent for an e-commerce store.
+
+Question: {question}
+Expected answer: {expected}
+Agent answer: {actual}
+
+Score the agent answer from 0 to 1 using these criteria:
+
+1.0 — The core answer is correct and complete for what was asked.
+0.75 — The core answer is correct but omits supplementary context that was NOT
+       directly asked for (e.g. the customer asked for order status and the agent
+       gave the correct status but did not mention the purchase date or payment
+       method). Also use 0.75 if one minor detail is missing from the conclusion.
+0.5 — The agent has the right direction but the primary fact asked for is missing
+      or wrong (e.g. gave a delivery date when freight cost was asked, or said
+      "cannot find" when the order exists). For both-tool questions: use 0.5 if
+      only one of the two required parts (order fact OR policy rule) is present.
+      For escalation questions: use 0.5 if the agent escalated but the reply
+      contradicts the expected handling, or handled it without escalating.
+0.25 — Key facts are wrong, hallucinated, or the conclusion contradicts the data.
+0.0 — Wrong answer, refused to answer, or completely irrelevant.
+
+Important: do NOT penalise the agent for omitting details the customer did not ask
+for. Judge only whether the question was correctly answered.
+
+For questions requiring BOTH a database lookup AND a policy rule, the answer must
+include both the specific order fact AND the policy conclusion to score above 0.5.
+
+Reply with ONLY a number: 0, 0.25, 0.5, 0.75, or 1.0. No explanation."""
+
+
+def judge_correctness(question: str, expected: str, actual: str) -> float:
+    """Score one answer against the expected answer. Returns 0-1."""
+    model, _, _ = _judge_config()
+    prompt = _CORRECTNESS_PROMPT.format(
+        question=question, expected=expected, actual=actual
+    )
+    response = _client().chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=8,
+    )
+    raw = (response.choices[0].message.content or "").strip()
+    score = _clamp_score(raw)
+    if score is None:
+        raise RuntimeError(f"correctness judge returned non-numeric: {raw!r}")
+    return score
+
+
 def judge_answer(
     question: str,
     answer: str,
@@ -134,13 +192,12 @@ def judge_answer(
     contexts: list[str],
 ) -> dict[str, Any]:
     """Score one RAG answer. Returns {faithfulness, answer_relevancy, reason}."""
-    model, base, key = _judge_config()
+    model, _, _ = _judge_config()
     context = _select_judge_context(contexts, question, answer, gold_answer)
 
     prompt = _JUDGE_PROMPT.format(question=question, answer=answer, context=context)
 
-    client = openai.OpenAI(base_url=base, api_key=key)
-    response = client.chat.completions.create(
+    response = _client().chat.completions.create(
         model=model,
         messages=[
             {

@@ -3,10 +3,15 @@ Orion eval harness — fully local, no LangSmith dependency.
 
 Evaluators
 ----------
-- correctness     : LLM-as-judge (llama-3.3-70b-versatile) vs expected answer
+- correctness     : LLM-as-judge vs expected answer (all categories)
 - tool_selection  : exact match between tools called and expected_tool category
-- faithfulness    : custom claim-level judge (gpt-4o-mini) — rag_only only
-- answer_relevancy: custom judge — all RAG categories
+- faithfulness    : claim-level judge — rag_only only
+- answer_relevancy: judge — all RAG categories
+
+All judge metrics use one model (eval/judge.py, default gpt-4o-mini), which is
+never the agent model. History: orion-v9 (2026-05) used Groq Llama 3.3 70B for
+correctness; that account was billing-blocked in 2026-08, so v12+ numbers are a
+new baseline, not comparable to v9.
 
 Results are written to eval/<experiment>.json and eval/<experiment>-summary.json
 after every example, so nothing is lost if the run is interrupted.
@@ -35,7 +40,6 @@ os.environ["LANGSMITH_TRACING"] = "false"
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage
-from langchain_groq import ChatGroq
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -44,8 +48,8 @@ load_dotenv()
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["LANGSMITH_TRACING"] = "false"
 
-from eval.judge import judge_answer  # noqa: E402
-from orion_agent.agent.config import AGENT_MODEL  # noqa: E402
+from eval.judge import _judge_config, judge_answer, judge_correctness  # noqa: E402
+from orion_agent.agent.config import AGENT_MODEL, LLM_PROVIDER  # noqa: E402
 
 orion_graph = None  # initialised in main()
 
@@ -76,38 +80,6 @@ SCORED_TOOL_CATEGORIES = {
 # ---------------------------------------------------------------------------
 # Agent runner
 # ---------------------------------------------------------------------------
-
-_judge = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-
-_CORRECTNESS_PROMPT = """\
-You are evaluating a customer support AI agent for an e-commerce store.
-
-Question: {question}
-Expected answer: {expected}
-Agent answer: {actual}
-
-Score the agent answer from 0 to 1 using these criteria:
-
-1.0 — The core answer is correct and complete for what was asked.
-0.75 — The core answer is correct but omits supplementary context that was NOT
-       directly asked for (e.g. the customer asked for order status and the agent
-       gave the correct status but did not mention the purchase date or payment
-       method). Also use 0.75 if one minor detail is missing from the conclusion.
-0.5 — The agent has the right direction but the primary fact asked for is missing
-      or wrong (e.g. gave a delivery date when freight cost was asked, or said
-      "cannot find" when the order exists). For both-tool questions: use 0.5 if
-      only one of the two required parts (order fact OR policy rule) is present.
-0.25 — Key facts are wrong, hallucinated, or the conclusion contradicts the data.
-0.0 — Wrong answer, refused to answer, or completely irrelevant.
-
-Important: do NOT penalise the agent for omitting details the customer did not ask
-for. Judge only whether the question was correctly answered.
-
-For questions requiring BOTH a database lookup AND a policy rule, the answer must
-include both the specific order fact AND the policy conclusion to score above 0.5.
-
-Reply with ONLY a number: 0, 0.25, 0.5, 0.75, or 1.0. No explanation."""
-
 
 def _run_one(example: dict, n: int) -> dict:
     """Run agent + all evaluators for a single example. Returns a result row."""
@@ -152,11 +124,7 @@ def _run_one(example: dict, n: int) -> dict:
 
     # correctness
     try:
-        prompt = _CORRECTNESS_PROMPT.format(
-            question=question, expected=expected_answer, actual=answer
-        )
-        resp = _judge.invoke(prompt)
-        row["correctness"] = max(0.0, min(1.0, float(resp.content.strip())))
+        row["correctness"] = judge_correctness(question, expected_answer, answer)
     except Exception as e:
         print(f"  [correctness ERROR] {e}", flush=True)
         row["correctness"] = None
@@ -230,7 +198,8 @@ def main() -> None:
     from orion_agent.agent.graph import graph as _g
 
     orion_graph = _g
-    print(f"Using Groq ({AGENT_MODEL}) for agent runs.")
+    judge_model = _judge_config()[0]
+    print(f"Agent: {LLM_PROVIDER} ({AGENT_MODEL}). Judge: {judge_model}.")
 
     examples = json.loads(DATASET_PATH.read_text())
     if args.limit:

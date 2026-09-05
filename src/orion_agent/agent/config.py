@@ -12,7 +12,7 @@ import os
 # ---------------------------------------------------------------------------
 
 # Chat model used for the agent and SQL generation.
-AGENT_MODEL: str = os.getenv("AGENT_MODEL", "qwen/qwen3-32b")
+AGENT_MODEL: str = os.getenv("AGENT_MODEL", "qwen/qwen3-235b-a22b-2507")
 
 # OpenRouter is preferred when its key is configured. Existing Groq-only
 # installations continue to work without changing their environment.
