@@ -1,4 +1,4 @@
-.PHONY: run ui api stack demo test eval ingest seed-support docker-build docker-up help
+.PHONY: run ui api stack demo test eval ingest seed-support qdrant docker-build docker-up help
 
 API_PORT ?= 8088
 WEB_PORT ?= 3500
@@ -22,7 +22,8 @@ help:
 	@echo "  make stack        - Start API + UI together (foreground; Ctrl-C stops both)"
 	@echo "  make demo         - Start the portfolio demo with its local SQLite database"
 	@echo "  make test         - Run all Python tests"
-	@echo "  make eval         - Run LangSmith evaluation"
+	@echo "  make eval         - Run the local LLM-as-judge eval harness"
+	@echo "  make qdrant       - Start the local Qdrant container (port $${QDRANT_PORT:-6337})"
 	@echo "  make ingest       - Embed and push policy chunks to Qdrant"
 	@echo "  make seed-support - Create/seed the support CRM database"
 	@echo "  make docker-build - Build Docker images (api + ui)"
@@ -37,7 +38,10 @@ api:
 ui:
 	cd frontend && NEXT_PUBLIC_API_BASE_URL=http://localhost:$(API_PORT) npm run dev -- -p $(WEB_PORT)
 
-stack: seed-support
+qdrant:
+	docker compose up -d --wait qdrant
+
+stack: seed-support qdrant
 	@trap 'kill 0' INT TERM; \
 	$(MAKE) api & \
 	$(MAKE) ui & \
@@ -49,12 +53,12 @@ demo:
 test:
 	uv run --frozen pytest tests/ -v
 
-EVAL_EXPERIMENT ?= orion-v5
+EVAL_EXPERIMENT ?= orion-v12
 
 eval:
 	@$(load_openrouter_key) nohup uv run --frozen python eval/run_eval.py --experiment $(EVAL_EXPERIMENT) > eval.log 2>&1 & echo "Eval PID $$! — tailing eval.log (Ctrl-C to detach, eval keeps running)"; tail -f eval.log
 
-ingest:
+ingest: qdrant
 	uv run --frozen python -m ingestion.chunker data/policies
 	uv run --frozen python ingestion/ingest.py
 

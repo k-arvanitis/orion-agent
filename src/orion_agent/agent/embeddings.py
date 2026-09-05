@@ -39,10 +39,13 @@ def _sparse() -> SparseTextEmbedding:
 
 
 def get_qdrant_client() -> QdrantClient:
-    """Create a Qdrant client from environment variables."""
+    """Create a Qdrant client from environment variables.
+
+    QDRANT_API_KEY is optional — the local docker-compose Qdrant has none.
+    """
     return QdrantClient(
         url=os.environ["QDRANT_URL"],
-        api_key=os.environ["QDRANT_API_KEY"],
+        api_key=os.environ.get("QDRANT_API_KEY") or None,
         timeout=30,
     )
 

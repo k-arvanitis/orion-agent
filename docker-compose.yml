@@ -1,4 +1,18 @@
 services:
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    ports:
+      # Host port is configurable because several projects on a dev box tend
+      # to fight over 6333. Inside the compose network it is always 6333.
+      - "${QDRANT_PORT:-6337}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
@@ -6,8 +20,13 @@ services:
     ports:
       - "8088:8088"
     env_file: .env
+    depends_on:
+      qdrant:
+        condition: service_healthy
     environment:
       CORS_ORIGINS: http://localhost:3500
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ""
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       SUPPORT_DATABASE_URL: sqlite:////app/data/orion_support.db
@@ -26,3 +45,6 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8088
     depends_on:
       - api
+
+volumes:
+  qdrant_data:

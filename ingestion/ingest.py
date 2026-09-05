@@ -1,5 +1,5 @@
 """
-Embed and ingest document chunks into Qdrant Cloud with hybrid search support.
+Embed and ingest document chunks into Qdrant (local or Cloud) with hybrid search.
 
 Each chunk gets two vectors:
   - dense:  fastembed BAAI/bge-small-en-v1.5 (384-dim, semantic similarity)
@@ -54,8 +54,8 @@ DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"
 
 
 def get_client() -> QdrantClient:
-    if not os.getenv("QDRANT_URL") or not os.getenv("QDRANT_API_KEY"):
-        logger.error("QDRANT_URL and QDRANT_API_KEY must be set in .env")
+    if not os.getenv("QDRANT_URL"):
+        logger.error("QDRANT_URL must be set in .env")
         sys.exit(1)
     return get_qdrant_client()
 

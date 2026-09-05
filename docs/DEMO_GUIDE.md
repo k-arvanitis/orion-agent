@@ -1,18 +1,19 @@
 # Orion portfolio demo guide
 
 This walkthrough demonstrates the complete customer-support loop in about 90
-seconds. It is intentionally simple enough for a client to run locally while
-still exposing the engineering behind it.
+seconds. Every reply comes from the live LangGraph agent, so you need
+`OPENROUTER_API_KEY` (or `GROQ_API_KEY`) in `.env` and a populated policy index.
 
 ## Start once
 
 ```bash
+make ingest   # first time only: start local Qdrant + embed the policy docs
 make demo
 ```
 
-This seeds the support CRM, starts FastAPI on `http://localhost:8088`, and starts
-Next.js on `http://localhost:3500`. The uncommon ports avoid the usual 3000/8000
-development conflicts.
+`make demo` starts the local Qdrant container, seeds the support CRM, starts
+FastAPI on `http://localhost:8088`, and starts Next.js on `http://localhost:3500`.
+The uncommon ports avoid the usual 3000/8000 development conflicts.
 
 ## The two pages
 
@@ -38,17 +39,18 @@ FastAPI also publishes interactive endpoint documentation at
 
 1. Click **New conversation** on `/customer`.
 2. Send: `What is your return policy?`
-3. Orion searches the bundled policy chunks in a local Qdrant vector index and
-   answers without asking for personal information.
-4. Expand **Technical details** to see `policy_vector_search`, the retrieved
-   document sections, and their similarity scores.
+3. The agent calls `search_policies` (hybrid dense + BM25 search over the
+   Qdrant index) and answers without asking for personal information.
+4. Expand **Technical details** to see the policy search entry and the
+   retrieved document sections.
 
 ## Flow 2: human approval and reply
 
 1. Click **New conversation** on `/customer`.
 2. Send: `My email is maya.torres@example.com. I need a refund.`
-3. Orion identifies the same customer, but marks the conversation **Waiting for
-   support** because a refund requires approval.
+3. Orion identifies the same customer. The agent decides a refund needs human
+   approval and calls `escalate_to_human`, so the conversation moves to
+   **Waiting for support**. If `SLACK_WEBHOOK_URL` is set, a Slack alert fires.
 4. Open the new conversation in `/support`. The middle pane contains the full
    conversation and a concise handoff summary; the right pane contains the CRM
    and order record.
@@ -59,17 +61,23 @@ The customer and support views expose the same database-persisted conversation.
 Their technical-details sections show which lookup tools ran and which SQL
 records were retrieved.
 
-## What is real, and what is simulated
+## What is real, and what is seeded
 
-- Real: SQL tables and persistence, customer/order/parcel matching, FastAPI
-  request boundary, two synchronized interfaces, status routing, support replies,
-  reset behavior, and automated tests.
-- Reliable local simulation: the response policy used by `/customer` is
-  deterministic, which keeps the portfolio demo usable without paid keys or
-  third-party uptime.
-- Provider-backed agent runtime: `/api/chat` uses LangGraph with policy RAG,
-  Text-to-SQL, response guards, and tracing when the documented environment
-  variables are configured.
+- Real: the LangGraph agent and its three tools, SQL tables and persistence,
+  FastAPI request boundary, two synchronized interfaces, status routing,
+  support replies, reset behavior, and automated tests.
+- Seeded: the six demo customers, their orders, and the example support cases
+  are fictional records created by `make seed-support`. Identity matching
+  (email, customer ID, order ID, parcel ID) is a deterministic SQL lookup that
+  runs before the agent so Orion never guesses who it is talking to.
+- Every response, tool choice, and escalation decision comes from the agent.
+  There is no scripted fallback: without an LLM key the demo does not answer.
 
-This separation is deliberate: the demonstration always works, while the
-repository still exposes the production-oriented AI implementation for review.
+## Reset only the generated demo conversations
+
+```bash
+curl -X POST http://localhost:8088/api/support/demo/reset
+```
+
+Removes only conversations created from the customer demo. The seeded CRM,
+products, orders, and example support cases remain intact.

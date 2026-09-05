@@ -119,9 +119,9 @@ Full interactive docs: `http://localhost:8088/docs`.
 
 **Qdrant over pgvector or Chroma.** Qdrant runs dense + sparse retrieval in a single prefetch query with built-in RRF fusion. pgvector requires two separate queries and manual reranking; Chroma has no sparse/BM25 support at all. For policy documents that contain exact regulated terms ("30-day return window", "Boleto", "CPF"), sparse retrieval is not optional — pure semantic search misses exact keyword matches under paraphrase.
 
-**Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (120 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
+**Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (116 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
 
-**Evaluation harness over manual spot-checking.** 116 labeled examples across 6 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
+**Evaluation harness over manual spot-checking.** 116 labeled examples across 5 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
 
 ---
 
@@ -152,7 +152,7 @@ Each example is scored with up to 4 metrics. RAG metrics only apply to categorie
 
 | Metric             | Method                                                                          | Applies to          |
 |--------------------|-----------------------------------------------------------------------------------|---------------------|
-| Correctness        | LLM-as-judge (Llama 3.3 70B) — scores 0–1 against expected answer                | All                 |
+| Correctness        | LLM-as-judge (`gpt-4o-mini`, never the agent model) — scores 0–1 against expected answer | All                 |
 | Tool selection     | Exact match against expected tool set                                           | All                 |
 | Faithfulness       | Custom claim-level judge — inferred conclusions count as supported; only contradictions and absent facts penalised | `rag_only` only |
 | Answer relevancy   | LLM-as-judge — does the answer directly address the question?                   | All RAG categories  |
@@ -180,8 +180,8 @@ Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers
 **Where it fails.** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
 
 ```bash
-make eval                                    # full run, saves to eval/orion-v9.json
-make eval EVAL_EXPERIMENT=orion-v10          # custom experiment name
+make eval                                    # full run, saves to eval/orion-v12.json
+make eval EVAL_EXPERIMENT=orion-v13          # custom experiment name
 uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 ```
 
@@ -192,12 +192,12 @@ uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 | Component          | Technology                                                              | Why, not the alternative |
 |--------------------|-------------------------------------------------------------------------|--------------------------|
 | Orchestration      | LangGraph — stateful ReAct agent with custom `OrionState`               | Over a plain LangChain chain: LangGraph gives per-thread state, explicit node/edge routing, and clean tool-call visibility — a chain can't isolate session state or expose the trace panel without significant boilerplate |
-| LLM                | OpenRouter — Qwen 3 32B (`qwen/qwen3-32b`)                              | Uses one OpenAI-compatible endpoint while keeping the model and backend swappable through environment variables; Groq remains available as a chat fallback and powers Whisper transcription |
-| RAG                | Qdrant Cloud — hybrid dense + sparse search with RRF fusion             | Over pgvector: Qdrant runs dense + sparse in a single prefetch query with built-in RRF fusion; pgvector requires two separate queries and manual reranking. Over Chroma: Chroma has no sparse/BM25 support |
+| LLM                | OpenRouter — Qwen3 235B-A22B Instruct (`qwen/qwen3-235b-a22b-2507`)     | Uses one OpenAI-compatible endpoint while keeping the model and backend swappable through environment variables; Groq remains available as a chat fallback and powers Whisper transcription |
+| RAG                | Qdrant — hybrid dense + sparse search with RRF fusion (local container by default, Qdrant Cloud via env) | Over pgvector: Qdrant runs dense + sparse in a single prefetch query with built-in RRF fusion; pgvector requires two separate queries and manual reranking. Over Chroma: Chroma has no sparse/BM25 support |
 | Dense embeddings   | fastembed `BAAI/bge-small-en-v1.5` (384-dim)                            | Over a hosted embedding API (OpenAI, Cohere): zero latency, no quota, no key, no cost per token — the 133 MB model runs locally via ONNX Runtime at ~2 ms per embed after first-use download |
 | Sparse embeddings  | BM25 via fastembed (`Qdrant/bm25`)                                      | Over dense-only: policy docs contain exact terms ("Boleto", "CPF", "30-day") that semantic search misses under paraphrase. BM25 handles keyword precision; dense handles intent — both are needed |
 | Database           | Supabase PostgreSQL — Olist dataset, 9 tables                           | Over a local Postgres container: managed service with no infra overhead; free tier covers the demo dataset comfortably |
-| Text2SQL           | Qwen 3 32B + sqlparse validation + SQLAlchemy execution                 | Over a dedicated Text2SQL library (e.g. vanna): full control over the prompt, schema injection, and retry logic; sqlparse SELECT-only validation adds a safety layer no library provides out of the box |
+| Text2SQL           | same agent LLM + sqlparse validation + SQLAlchemy execution              | Over a dedicated Text2SQL library (e.g. vanna): full control over the prompt, schema injection, and retry logic; sqlparse SELECT-only validation adds a safety layer no library provides out of the box |
 | Observability      | LangSmith                                                               | Over logging to stdout: LangSmith captures tool decisions, token counts, and latency per node in a queryable UI — essential for diagnosing the `both`-category failures in eval |
 | Evaluation         | Custom LLM-as-judge harness (fully local, JSON output)                  | Over RAGAS + LangSmith: RAGAS faithfulness incorrectly penalises `both_tools` answers for SQL facts that aren't in the RAG context; LangSmith's free tier trace quota runs out mid-eval. The custom judge uses claim-level faithfulness (inferred conclusions count as supported), writes results to disk after every example, and has no external service dependency |
 | Frontend           | Next.js 14 (App Router, TypeScript, Tailwind)                           | Over Streamlit: native token streaming via fetch + ReadableStream, a real component model for the trace sidebar, and voice via the browser MediaRecorder API — none of which are practical in Streamlit |
@@ -215,7 +215,7 @@ Returns `{"answer": "<formatted chunks>", "chunks": [{"source", "heading", "cont
 
 ### `query_database` — Text2SQL over order data
 
-Sends the question + full schema context to Qwen 3 32B, which generates a PostgreSQL SELECT query. The query is validated by **sqlparse** (SELECT-only whitelist) before execution. On failure, the error is fed back to the LLM for one retry. Results are interpreted back into natural language by the same LLM.
+Sends the question + schema context to the agent LLM, which generates a PostgreSQL SELECT query. The query is validated by **sqlparse** (SELECT-only whitelist) before execution. On failure, the error is fed back to the LLM for one retry. Results are interpreted back into natural language by the same LLM.
 
 Returns `{"answer": "<natural language response>", "sql": "<query that ran>"}`.
 
@@ -270,12 +270,10 @@ responses all come from the live agent, not a scripted fallback. It needs
 deterministic SQL lookup ahead of the agent call, so `/api/support/*` never
 guesses who it's talking to.
 
-See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough.
-The [Upwork portfolio-fit matrix](docs/UPWORK_PORTFOLIO_FIT.md) maps the project
-to the recurring requirements in the local August 2026 job-market workbook.
+See [the 90-second demo guide](docs/DEMO_GUIDE.md) for the exact walkthrough
+and [the roadmap](docs/PLAN_2026-09-05.md) for what is planned next.
 
-> **TODO before publishing:** demo video pending re-recording for the
-> `/customer` + `/support` split — add it here once ready.
+**Demo video:** _add the hosted link here_ — 90-second `/customer` + `/support` walkthrough.
 
 ![Customer chat — order lookup with delivery status](assets/customer-chat.png)
 
@@ -351,8 +349,8 @@ Orion's own `.env` in a standalone checkout.
 Required keys:
 ```
 DATABASE_URL=postgresql://...
-QDRANT_URL=https://...
-QDRANT_API_KEY=...
+QDRANT_URL=http://localhost:6337   # local container (make qdrant); or your Qdrant Cloud URL
+QDRANT_API_KEY=                    # only for Qdrant Cloud
 LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=...
 GROQ_API_KEY=...             # voice transcription; optional for text-only use
@@ -368,8 +366,10 @@ LANGCHAIN_PROJECT=orion-agent
 
 ### Ingest policies into Qdrant
 ```bash
-make ingest
+make ingest    # starts the local Qdrant container (docker compose), chunks data/policies, embeds + upserts
 ```
+Qdrant runs as a local container by default (`make qdrant`, host port `QDRANT_PORT`, default 6337).
+Point `QDRANT_URL`/`QDRANT_API_KEY` at a Qdrant Cloud cluster for a hosted deployment; nothing else changes.
 
 ### Quick Start
 
@@ -384,7 +384,7 @@ make seed-support  # Create/seed the local support CRM database
 
 make run       # CLI agent (no frontend)
 make test      # run all Python tests
-make eval      # run evaluation — results saved to eval/orion-v9.json
+make eval      # run evaluation — results saved to eval/orion-v12.json
 ```
 
 > **Port already in use?** Override with `make api API_PORT=8088` and `make ui API_PORT=8088 WEB_PORT=3500`. The Next.js dev server picks up `NEXT_PUBLIC_API_BASE_URL` from the environment.
@@ -419,7 +419,7 @@ CI runs `uv run ruff check .` before the test suite.
 
 ### Docker
 
-`docker-compose.yml` brings up two services: the FastAPI backend on `:8088` and the Next.js frontend on `:3500`. External services (OpenRouter, Qdrant Cloud, Supabase, Groq Whisper, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
+`docker-compose.yml` brings up three services: Qdrant (`:6337` on the host), the FastAPI backend on `:8088`, and the Next.js frontend on `:3500`. External services (OpenRouter, Supabase, Groq Whisper, ElevenLabs) are reached over the network via keys in `.env`. Embeddings run inside the API container via `fastembed` — no separate embedding service.
 
 ```bash
 cp .env.example .env       # fill in your keys
@@ -429,7 +429,7 @@ make docker-up             # starts api (8088) + ui (3500)
 
 Then open `http://localhost:3500/customer` and `http://localhost:3500/support`.
 
-> **Note:** The containers do not include your Qdrant or Supabase data. Run `make ingest` once to populate Qdrant before the RAG tool returns results.
+> **Note:** The containers do not include your Supabase data, and the Qdrant volume starts empty. Run `make ingest` once to populate it before the RAG tool returns results.
 
 ### Failure Modes
 
@@ -451,6 +451,7 @@ make test
 
 | File                       | What it tests                                                          |
 |----------------------------|--------------------------------------------------------------------------|
+| `test_escalate_tool.py`    | Escalation payload shape, Slack webhook skipped when unset, posted when set |
 | `test_guard.py`            | PII stripping (CPF, phone), GuardResult flags                          |
 | `test_routing.py`          | `should_continue` routing logic, checkpointer connection stays open    |
 | `test_sql_validation.py`   | SELECT-only validation, DML rejection, markdown fence stripping        |
@@ -465,10 +466,9 @@ make test
 ## Known limitations
 
 - **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
-- **Provider-backed conversational memory is unreliable across turns** — after the LangGraph agent resolves a policy question, a follow-up in the same thread can get a generic "please share your email" response instead of a contextual reply, even though `OrionState` is persisted via `SqliteSaver`. Tracked in `TODO.md`.
 - **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
-- **Single-tenant eval dataset** — the 120-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
+- **Single-tenant eval dataset** — the 116-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
 
 ---
@@ -477,17 +477,18 @@ make test
 
 ```
 orion-agent/
-├── agent/
+├── src/orion_agent/agent/
 │   ├── config.py             # Centralised config — all model names and defaults
 │   ├── llm.py                # Chat-model factory — OpenRouter preferred, Groq fallback
 │   ├── embeddings.py         # fastembed BGE dense + fastembed BM25 sparse
-│   ├── graph.py               # LangGraph ReAct agent with OrionState (SqliteSaver-backed)
+│   ├── graph.py               # LangGraph ReAct agent with OrionState (SqliteSaver-backed), run_turn()
 │   ├── guard.py               # PII filter (CPF, phone)
-│   ├── prompts.py             # System prompt with tool reasoning examples
+│   ├── prompts.py             # System prompt with tool reasoning + escalation rules
 │   ├── voice.py                # Voice I/O: Groq Whisper + ElevenLabs
 │   └── tools/
 │       ├── rag_tool.py       # Hybrid Qdrant search — returns structured JSON
-│       └── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
+│       ├── sql_tool.py       # Text2SQL over Supabase — returns structured JSON
+│       └── escalate_tool.py  # Structured handoff signal + optional Slack alert
 ├── ingestion/
 │   ├── chunker.py            # Markdown → heading-based chunks
 │   ├── ingest.py              # Embed + push to Qdrant (dense + sparse)
@@ -526,6 +527,7 @@ orion-agent/
 │   ├── package.json           # Next 14 + React 18 + Tailwind + shadcn deps
 │   └── Dockerfile              # multi-stage Node build
 ├── tests/
+│   ├── test_escalate_tool.py
 │   ├── test_guard.py
 │   ├── test_routing.py
 │   ├── test_sql_validation.py
@@ -536,12 +538,13 @@ orion-agent/
 │   └── test_support_api.py
 ├── docs/
 │   ├── DEMO_GUIDE.md         # 90-second walkthrough for /customer + /support
-│   └── UPWORK_PORTFOLIO_FIT.md
+│   └── PLAN_2026-09-05.md    # Roadmap: eval, scaling to real company data, hardening
 ├── data/
 │   └── policies/               # Markdown policy documents (4 files)
-├── .github/workflows/ci.yml  # CI — runs tests on every push
+├── .github/workflows/ci.yml  # CI — ruff + tests on every push
+├── docker-compose.yml          # qdrant + api + ui
 ├── main.py                     # CLI entry point
-├── Makefile                    # make demo / stack / api / ui / test / eval / ingest / seed-support
+├── Makefile                    # make demo / stack / api / ui / qdrant / test / eval / ingest / seed-support
 └── .env.example
 ```
 
