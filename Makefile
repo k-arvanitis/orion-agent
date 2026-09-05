@@ -1,4 +1,4 @@
-.PHONY: run ui api stack demo test eval ingest seed-support qdrant docker-build docker-up help
+.PHONY: run ui api stack demo test eval ingest seed-support qdrant db load-data docker-build docker-up help
 
 API_PORT ?= 8088
 WEB_PORT ?= 3500
@@ -24,6 +24,8 @@ help:
 	@echo "  make test         - Run all Python tests"
 	@echo "  make eval         - Run the local LLM-as-judge eval harness"
 	@echo "  make qdrant       - Start the local Qdrant container (port $${QDRANT_PORT:-6337})"
+	@echo "  make db           - Start the local Postgres container (port $${POSTGRES_PORT:-5439})"
+	@echo "  make load-data    - Load the Olist CSVs from data/customer-data into Postgres"
 	@echo "  make ingest       - Embed and push policy chunks to Qdrant"
 	@echo "  make seed-support - Create/seed the support CRM database"
 	@echo "  make docker-build - Build Docker images (api + ui)"
@@ -41,7 +43,13 @@ ui:
 qdrant:
 	docker compose up -d --wait qdrant
 
-stack: seed-support qdrant
+db:
+	docker compose up -d --wait postgres
+
+load-data: db
+	uv run --frozen python ingestion/load_customer_data.py
+
+stack: seed-support qdrant db
 	@trap 'kill 0' INT TERM; \
 	$(MAKE) api & \
 	$(MAKE) ui & \

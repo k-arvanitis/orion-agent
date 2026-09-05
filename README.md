@@ -1,6 +1,6 @@
 # Orion — AI Customer Support Agent
 
-**Orion is a live AI support agent with a real human handoff** — a customer chats with Orion in `/customer`; Orion identifies them and their order from a database, resolves routine order-status and policy questions on the spot with sources shown, and hands unresolved cases to a support teammate who replies in the same thread from `/support`. In structured eval of the provider-backed agent core across 116 labeled examples: **87% correctness, 93% correct tool routing**.
+**Orion is a live AI support agent with a real human handoff** — a customer chats with Orion in `/customer`; Orion identifies them and their order from a database, resolves routine order-status and policy questions on the spot with sources shown, and hands unresolved cases to a support teammate who replies in the same thread from `/support`. Structured eval covers 154 labeled examples across 7 categories, including escalation and multi-turn scripts (historical 2-tool numbers below predate the current dataset and are kept for context, not as a current claim).
 
 Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion resolves the repetitive tier-1 volume automatically and hands the rest to a person without the customer ever leaving the conversation or repeating themselves.
 
@@ -119,15 +119,15 @@ Full interactive docs: `http://localhost:8088/docs`.
 
 **Qdrant over pgvector or Chroma.** Qdrant runs dense + sparse retrieval in a single prefetch query with built-in RRF fusion. pgvector requires two separate queries and manual reranking; Chroma has no sparse/BM25 support at all. For policy documents that contain exact regulated terms ("30-day return window", "Boleto", "CPF"), sparse retrieval is not optional — pure semantic search misses exact keyword matches under paraphrase.
 
-**Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (116 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
+**Local embeddings over a hosted API.** fastembed runs the BGE-small model locally via ONNX Runtime: no API key, no per-token cost, no quota to hit during eval runs (154 examples × multiple retries). After the one-time ~133 MB download, each embed takes ~2 ms. For a portfolio project that runs eval repeatedly, this pays for itself immediately.
 
-**Evaluation harness over manual spot-checking.** 116 labeled examples across 5 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
+**Evaluation harness over manual spot-checking.** 154 labeled examples across 7 categories with four measurement signals (custom LLM-as-judge faithfulness, answer relevancy, correctness, exact-match tool selection) means every change to the prompt, retrieval config, or model can be measured — not eyeballed. The `both` category (questions requiring RAG + SQL together) specifically exists because that failure mode is invisible without structured eval: the agent retrieves the right data from both tools but fails to combine them into a single answer. Faithfulness is intentionally restricted to `rag_only` cases — running it on `both_tools` answers is structurally invalid because the agent also draws on SQL data that isn't present in the retrieved RAG context.
 
 ---
 
 ## Evaluation
 
-The eval harness runs **116 labeled question-answer pairs** across 5 categories, scoring the provider-backed LangGraph agent's RAG and Text2SQL tools. Dataset generated with Claude Sonnet as a generation tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents.
+The eval harness runs **154 labeled question-answer pairs** across 7 categories, scoring the provider-backed LangGraph agent's RAG, Text2SQL, and escalation tools. The original 116 were generated with an LLM as a drafting tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents; the escalation, multi-turn, and additional both-tools cases added later reference real order IDs and payment/delivery data queried directly from the loaded Olist tables.
 
 > **Stale after this change:** the agent gained a third tool,
 > [`escalate_to_human`](#escalate_to_human--hand-off-to-a-support-teammate) —
@@ -140,11 +140,15 @@ The eval harness runs **116 labeled question-answer pairs** across 5 categories,
 
 | Category      | Count | Description                                                                                         |
 |---------------|-------|-----------------------------------------------------------------------------------------------------|
-| `rag_only`    | 40    | Policy questions — returns, warranties, shipping rules, payment terms                               |
-| `sql_only`    | 35    | Order-specific questions — status, delivery dates, payments, freight values                         |
-| `both`        | 30    | Mixed questions requiring both order facts and policy rules (e.g. "my order arrived damaged, can I return it?") |
+| `rag_only`    | 42    | Policy questions — returns, warranties, shipping rules, payment terms                               |
+| `sql_only`    | 36    | Order-specific questions — status, delivery dates, payments, freight values                         |
+| `both`        | 40    | Mixed questions requiring both order facts and policy rules, real orders from the loaded Olist DB   |
+| `escalation`  | 15    | Requests needing human approval — damage/wrong/missing item, in-transit non-delivery, explicit human request, adverse reaction. Plus 5 negative cases spread across the categories above (frustrated tone, borderline late delivery) that must NOT trigger escalation |
+| `multi_turn`  | 10    | Two-turn scripts on one thread — context carryover (order ID, category, policy topic), escalation reinforced on a follow-up, DB fact vs. an unverified customer claim |
 | `edge_case`   | 6     | Corner cases — non-returnable items, expired boletos, late deliveries outside policy window         |
 | `adversarial` | 5     | Prompt injection, out-of-scope questions, SQL injection in natural language, PII in query            |
+
+`escalation`, `multi_turn`, and 10 of the `both` cases reference real order IDs, categories, and payment/delivery data pulled from the locally loaded Olist dataset rather than invented ones — seeded from real customer complaint patterns found in `order_reviews.review_comment_message`.
 
 **Scoring:**
 
@@ -153,13 +157,18 @@ Each example is scored with up to 4 metrics. RAG metrics only apply to categorie
 | Metric             | Method                                                                          | Applies to          |
 |--------------------|-----------------------------------------------------------------------------------|---------------------|
 | Correctness        | LLM-as-judge (`gpt-4o-mini`, never the agent model) — scores 0–1 against expected answer | All                 |
-| Tool selection     | Exact match against expected tool set                                           | All                 |
+| Tool selection     | Exact match against expected tool set — except `escalation`, which passes if `escalate_to_human` is among the tools called (the agent may gather order/policy facts first) | All |
 | Faithfulness       | Custom claim-level judge — inferred conclusions count as supported; only contradictions and absent facts penalised | `rag_only` only |
 | Answer relevancy   | LLM-as-judge — does the answer directly address the question?                   | All RAG categories  |
 
+`multi_turn` cases run every turn sequentially on one `thread_id` before scoring the final turn's answer; tool selection is scored cumulatively across all turns in the script.
+
 Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
 
-**Results (orion-v9, 116 examples):**
+**Results:** not yet re-run against the 154-case dataset above. orion-v9 (2026-05, 116 examples, 2-tool agent, a different judge model) is kept below for history only — it predates `escalate_to_human`, the escalation/multi-turn categories, and the current judge, so it is not comparable to a fresh run. See [the roadmap](docs/PLAN_2026-09-05.md) for the plan to re-run and replace this section.
+
+<details>
+<summary>orion-v9 results (2026-05, historical, not comparable)</summary>
 
 | Metric             | Score | Examples |
 |--------------------|-------|----------|
@@ -168,8 +177,6 @@ Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers
 | Faithfulness       | 0.97  | 44       |
 | Answer relevancy   | 0.94  | 75       |
 
-**Per-category breakdown:**
-
 | Category       | n   | Correctness | Tool selection | Notes |
 |----------------|-----|-------------|----------------|-------|
 | `rag_only`     | 44  | **0.96**    | **1.00**       | Policy questions — near-perfect |
@@ -177,7 +184,9 @@ Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers
 | `both`         | 31  | **0.78**    | **0.77**       | Mixed queries — primary failure surface |
 | `none`         | 5   | **0.70**    | —              | Adversarial / out-of-scope |
 
-**Where it fails.** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
+</details>
+
+**Where it failed (orion-v9, historical).** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
 
 ```bash
 make eval                                    # full run, saves to eval/orion-v12.json
@@ -468,7 +477,7 @@ make test
 - **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
 - **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
-- **Single-tenant eval dataset** — the 116-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
+- **Single-tenant eval dataset** — the 154-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
 - **Hosted LLM limits under eval load** — a full concurrent eval can hit provider limits. The `--limit` flag exists for smaller smoke runs; `LLM_PROVIDER` and `AGENT_MODEL` can be changed without modifying agent code.
 
 ---
@@ -495,9 +504,9 @@ orion-agent/
 │   ├── load_customer_data.py # CSV → Supabase with automatic type inference
 │   └── seed_support_data.py  # Create/seed the local support CRM database
 ├── eval/
-│   ├── run_eval.py           # Local eval harness (4 metrics, 116 cases, results → JSON)
+│   ├── run_eval.py           # Local eval harness (4 metrics, 154 cases incl. multi-turn, results → JSON)
 │   ├── judge.py               # Custom claim-level LLM judge (faithfulness + answer relevancy)
-│   └── dataset.json           # 116 labeled test cases across 5 categories
+│   └── dataset.json           # 154 labeled test cases across 7 categories
 ├── api/
 │   ├── main.py                # FastAPI app: /api/support/*, /api/chat, /transcribe, /tts
 │   ├── schemas.py             # Pydantic request/response models

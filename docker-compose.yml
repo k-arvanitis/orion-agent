@@ -13,6 +13,22 @@ services:
       timeout: 3s
       retries: 10
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5439}:5432"
+    environment:
+      POSTGRES_USER: orion
+      POSTGRES_PASSWORD: orion
+      POSTGRES_DB: orion
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orion -d orion"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
@@ -23,10 +39,13 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       CORS_ORIGINS: http://localhost:3500
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ""
+      DATABASE_URL: postgresql://orion:orion@postgres:5432/orion
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       SUPPORT_DATABASE_URL: sqlite:////app/data/orion_support.db
@@ -48,3 +67,4 @@ services:
 
 volumes:
   qdrant_data:
+  postgres_data:

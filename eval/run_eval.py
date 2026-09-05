@@ -4,7 +4,10 @@ Orion eval harness — fully local, no LangSmith dependency.
 Evaluators
 ----------
 - correctness     : LLM-as-judge vs expected answer (all categories)
-- tool_selection  : exact match between tools called and expected_tool category
+- tool_selection  : exact match against expected_tool category, except
+                    "escalation" (must include escalate_to_human, other tools
+                    called first are fine) and multi_turn cases (matched
+                    cumulatively across all turns on the same thread)
 - faithfulness    : claim-level judge — rag_only only
 - answer_relevancy: judge — all RAG categories
 
@@ -69,32 +72,60 @@ TOOL_CATEGORY_MAP = {
     "both_tools": {"query_database", "search_policies"},
     "both": {"query_database", "search_policies"},
     "adversarial": set(),
+    "escalation": {"escalate_to_human"},
 }
+
+# For these, tool_selection passes if tools_called is a SUPERSET of the
+# mapped set (the agent may gather order/policy facts before escalating).
+# Every other category requires an exact set match.
+CONTAINS_TOOL_CATEGORIES = {"escalation"}
 
 FAITHFULNESS_CATEGORIES = {"rag_only"}
 RAG_CATEGORIES = {"rag_only", "both_tools", "both"}
 SCORED_TOOL_CATEGORIES = {
-    "sql_only", "rag_only", "both_tools", "both", "adversarial",
+    "sql_only", "rag_only", "both_tools", "both", "adversarial", "escalation",
 }
 
 # ---------------------------------------------------------------------------
 # Agent runner
 # ---------------------------------------------------------------------------
 
+def _run_turns(turns: list[str], thread_id: str) -> dict:
+    """Run a multi-turn script sequentially on one thread_id.
+
+    tools_called/last_chunks/last_sql/escalation are plain (non-reducer) state
+    fields, so the checkpointer carries the previous turn's values forward and
+    tools_node appends to them — they accumulate across turns on purpose, the
+    same way a real multi-message conversation would.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    result = None
+    for turn in turns:
+        result = orion_graph.invoke(
+            {"messages": [{"role": "user", "content": turn}]}, config=config
+        )
+    return result
+
+
 def _run_one(example: dict, n: int) -> dict:
     """Run agent + all evaluators for a single example. Returns a result row."""
-    question = example["question"]
+    turns = example.get("turns")
+    question = turns[-1] if turns else example["question"]
     expected_answer = example["expected_answer"]
     expected_tool = example["expected_tool"]
 
-    print(f"[{n}/{_total}] {question[:90]}", flush=True)
+    label = f"[multi-turn x{len(turns)}] {question[:70]}" if turns else question[:90]
+    print(f"[{n}/{_total}] {label}", flush=True)
     t0 = time.monotonic()
 
     thread_id = str(uuid.uuid4())
-    result = orion_graph.invoke(
-        {"messages": [{"role": "user", "content": question}]},
-        config={"configurable": {"thread_id": thread_id}},
-    )
+    if turns:
+        result = _run_turns(turns, thread_id)
+    else:
+        result = orion_graph.invoke(
+            {"messages": [{"role": "user", "content": question}]},
+            config={"configurable": {"thread_id": thread_id}},
+        )
 
     messages = result["messages"]
     answer = next(
@@ -132,7 +163,11 @@ def _run_one(example: dict, n: int) -> dict:
     # tool_selection
     if expected_tool in SCORED_TOOL_CATEGORIES:
         expected_tools = TOOL_CATEGORY_MAP.get(expected_tool, set())
-        row["tool_selection"] = 1.0 if tools_called == expected_tools else 0.0
+        if expected_tool in CONTAINS_TOOL_CATEGORIES:
+            passed = expected_tools <= tools_called
+        else:
+            passed = tools_called == expected_tools
+        row["tool_selection"] = 1.0 if passed else 0.0
     else:
         row["tool_selection"] = None
 
