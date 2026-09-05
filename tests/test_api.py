@@ -35,10 +35,31 @@ def client():
 # ---------------------------------------------------------------------------
 
 
-def test_health_returns_ok(client):
+def test_health_returns_ok_when_all_dependencies_are_up(client, monkeypatch):
+    monkeypatch.setattr("api.main._check_llm_key", lambda: True)
+    monkeypatch.setattr("api.main._check_qdrant", lambda: True)
+    monkeypatch.setattr("api.main._check_database", lambda: True)
+
     r = client.get("/api/health")
+
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    assert r.json() == {
+        "status": "ok",
+        "dependencies": {"llm_key": True, "qdrant": True, "database": True},
+    }
+
+
+def test_health_returns_degraded_when_a_dependency_is_down(client, monkeypatch):
+    monkeypatch.setattr("api.main._check_llm_key", lambda: True)
+    monkeypatch.setattr("api.main._check_qdrant", lambda: False)
+    monkeypatch.setattr("api.main._check_database", lambda: True)
+
+    r = client.get("/api/health")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "degraded"
+    assert body["dependencies"]["qdrant"] is False
 
 
 # ---------------------------------------------------------------------------

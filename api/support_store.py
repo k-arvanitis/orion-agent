@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
@@ -777,21 +778,46 @@ def _run_agent_turn(customer: dict, content: str, thread_id: str) -> dict:
     }
 
 
-def _match_customer_from_message(conn: Connection, content: str):
-    normalized = content.lower()
-    customer_rows = conn.execute(select(customers)).all()
-    for row in customer_rows:
-        customer = row._mapping
-        if customer["email"].lower() in normalized or customer["id"].lower() in normalized:
-            return row
+_IDENTIFIER_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9@_.-]{2,}")
 
-    order_rows = conn.execute(select(orders)).all()
-    for order_row in order_rows:
-        order = order_row._mapping
-        if order["id"].lower() in normalized or order["parcel_id"].lower() in normalized:
-            return conn.execute(
-                select(customers).where(customers.c.id == order["customer_id"])
-            ).one()
+
+def _match_customer_from_message(conn: Connection, content: str):
+    """Match a customer by email, customer ID, order ID, or parcel ID.
+
+    Extracts word-like tokens from the message and looks them up with
+    indexed WHERE...IN queries, instead of loading every customer and every
+    order into Python and substring-scanning them per message (fine at demo
+    scale, O(customers + orders) per message at real scale).
+    """
+    tokens = {t.lower() for t in _IDENTIFIER_TOKEN_RE.findall(content)}
+    if not tokens:
+        return None
+
+    customer_row = conn.execute(
+        select(customers).where(
+            or_(
+                func.lower(customers.c.email).in_(tokens),
+                func.lower(customers.c.id).in_(tokens),
+            )
+        )
+    ).first()
+    if customer_row:
+        return customer_row
+
+    order_row = conn.execute(
+        select(orders).where(
+            or_(
+                func.lower(orders.c.id).in_(tokens),
+                func.lower(orders.c.parcel_id).in_(tokens),
+            )
+        )
+    ).first()
+    if order_row:
+        return conn.execute(
+            select(customers).where(
+                customers.c.id == order_row._mapping["customer_id"]
+            )
+        ).one()
     return None
 
 

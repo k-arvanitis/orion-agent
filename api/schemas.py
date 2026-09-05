@@ -18,6 +18,7 @@ class TtsRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+    dependencies: dict[str, bool] = Field(default_factory=dict)
 
 
 class CustomerMessageRequest(BaseModel):

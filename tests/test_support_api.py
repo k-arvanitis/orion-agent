@@ -270,3 +270,48 @@ def test_support_can_delete_any_conversation(support_client):
     assert support_client.delete(
         f"/api/support/conversations/{ticket['id']}"
     ).status_code == 404
+
+
+def test_customer_matched_by_email_not_only_order_id(support_client):
+    response = support_client.post(
+        "/api/support/conversations/messages",
+        json={
+            "message": "My email is liam.chen@example.com, can I exchange my jacket?",
+            "conversation_id": None,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["customer"]["name"] == "Liam Chen"
+
+
+def test_identity_match_is_indexed_not_a_full_table_scan(support_client, monkeypatch):
+    """The lookup must use SQLAlchemy select(...).where(...in_(...)) — not
+    load every customer/order row into Python and substring-scan them,
+    which is what made the old implementation O(customers + orders)."""
+    from api import support_store
+
+    original_execute = support_store.Connection.execute
+    calls = []
+
+    def spying_execute(self, statement, *args, **kwargs):
+        calls.append(str(statement))
+        return original_execute(self, statement, *args, **kwargs)
+
+    monkeypatch.setattr(support_store.Connection, "execute", spying_execute)
+
+    support_client.post(
+        "/api/support/conversations/messages",
+        json={
+            "message": "Where is order 416e49799e9260d93c8f636ce6661a55?",
+            "conversation_id": None,
+        },
+    )
+
+    full_scans = [
+        c for c in calls
+        if ("FROM support_customers" in c or "FROM support_orders" in c)
+        and "WHERE" not in c
+        and "count" not in c.lower()
+    ]
+    assert not full_scans, f"identity match ran an unfiltered table scan: {full_scans}"

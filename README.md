@@ -87,7 +87,7 @@ One FastAPI app, one agent. `/api/support/*` (what `/customer` and `/support` ac
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check |
+| `/api/health` | GET | Health check — overall status plus per-dependency status (LLM key present, Qdrant reachable, database reachable) |
 | `/api/chat` | POST | Provider-backed LangGraph agent — NDJSON streamed response |
 | `/api/support/customers/lookup` | GET | Identity match for the demo path |
 | `/api/support/conversations` | GET | List conversations (support queue) |
@@ -467,7 +467,7 @@ make test
 | `test_rag_tool.py`         | Structured JSON response, chunk metadata, Qdrant / dense-encoder failure fallbacks |
 | `test_voice.py`            | Whisper transcribe + ElevenLabs synthesize (Groq + ElevenLabs mocked)  |
 | `test_llm.py`              | Chat-model factory — OpenRouter vs Groq selection, missing-key errors  |
-| `test_api.py`              | FastAPI endpoints — chat NDJSON stream (lazy agent load + degrade-clean), transcribe, tts, validation, error paths |
+| `test_api.py`              | FastAPI endpoints — health (ok/degraded per dependency), chat NDJSON stream (lazy agent load + degrade-clean), transcribe, tts, validation, error paths |
 | `test_support_api.py`      | Seeded SQL CRM, database-derived overview, identity matching, status routing, and persisted support replies |
 
 ---

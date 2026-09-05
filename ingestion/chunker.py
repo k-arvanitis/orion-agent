@@ -3,7 +3,10 @@ Markdown policy document chunker.
 
 Splits structured Markdown files into semantically coherent chunks at the H3
 subsection level, preserving H1/H2 breadcrumb context in each chunk's content.
-Outputs a single JSON file suitable for downstream embedding and retrieval.
+An H3 section longer than MAX_CHUNK_CHARS is further split on paragraph
+boundaries with overlap, so a long section in a real (not hand-authored)
+document doesn't become one oversized chunk. Outputs a single JSON file
+suitable for downstream embedding and retrieval.
 
 Usage:
     uv run chunker data/policies
@@ -17,6 +20,11 @@ import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+# Chunks stay under this size before overlap is added back; sized so a chunk
+# plus a couple of neighbours still fits comfortably in a retrieval prompt.
+MAX_CHUNK_CHARS = 1600
+CHUNK_OVERLAP_CHARS = 200
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -44,6 +52,28 @@ def extract_doc_title(text: str) -> str:
     return match.group(1).strip() if match else "Unknown"
 
 
+def _split_long_content(text: str, max_chars: int, overlap: int) -> list[str]:
+    """Pack paragraphs into pieces <= max_chars, repeating the tail of each
+    piece at the start of the next so nearby facts aren't split across a
+    retrieval boundary with no shared context."""
+    if len(text) <= max_chars:
+        return [text]
+
+    paragraphs = [p for p in text.split("\n\n") if p.strip()]
+    pieces: list[str] = []
+    current = ""
+    for para in paragraphs:
+        candidate = f"{current}\n\n{para}" if current else para
+        if len(candidate) <= max_chars or not current:
+            current = candidate
+        else:
+            pieces.append(current)
+            current = f"{current[-overlap:]}\n\n{para}"
+    if current:
+        pieces.append(current)
+    return pieces
+
+
 def chunk_document(text: str, doc_title: str, source_file: str) -> list[Chunk]:
     """
     Split a single Markdown document into H3-level chunks.
@@ -69,16 +99,23 @@ def chunk_document(text: str, doc_title: str, source_file: str) -> list[Chunk]:
         elif re.match(r"^### ", part):
             heading = part.splitlines()[0].lstrip("#").strip()
             content = f"[{doc_title} > {current_h2}]\n\n{part}"
-            chunks.append(
-                Chunk(
-                    id=f"{source_file}::{heading}",
-                    source=source_file,
-                    doc_title=doc_title,
-                    section=current_h2,
-                    heading=heading,
-                    content=content,
+            pieces = _split_long_content(content, MAX_CHUNK_CHARS, CHUNK_OVERLAP_CHARS)
+            for i, piece in enumerate(pieces):
+                chunk_id = (
+                    f"{source_file}::{heading}"
+                    if len(pieces) == 1
+                    else (f"{source_file}::{heading}::{i}")
                 )
-            )
+                chunks.append(
+                    Chunk(
+                        id=chunk_id,
+                        source=source_file,
+                        doc_title=doc_title,
+                        section=current_h2,
+                        heading=heading,
+                        content=piece,
+                    )
+                )
 
     return chunks
 
@@ -165,5 +202,40 @@ def main() -> None:
     print(f"\n{len(chunks)} total chunks written to '{output_path}'")
 
 
+# ---------------------------------------------------------------------------
+# Self-check (ponytail: run directly with `python -m ingestion.chunker --selftest`)
+# ---------------------------------------------------------------------------
+
+
+def _selftest() -> None:
+    short_doc = "# Title\n\n## Section\n\n### Heading\n\nShort body."
+    chunks = chunk_document(short_doc, "Title", "short.md")
+    assert len(chunks) == 1
+    assert chunks[0].id == "short.md::Heading"
+    assert "Short body." in chunks[0].content
+
+    long_body = "\n\n".join(
+        f"Paragraph {i} with some real sentence content." for i in range(80)
+    )
+    long_doc = f"# Title\n\n## Section\n\n### Heading\n\n{long_body}"
+    long_chunks = chunk_document(long_doc, "Title", "long.md")
+    assert len(long_chunks) > 1, "expected the long section to be split"
+    assert all(
+        len(c.content) <= MAX_CHUNK_CHARS + CHUNK_OVERLAP_CHARS for c in long_chunks
+    )
+    assert all(c.heading == "Heading" for c in long_chunks)
+    ids = [c.id for c in long_chunks]
+    assert len(ids) == len(set(ids)), "chunk ids must be unique"
+    for a, b in zip(long_chunks, long_chunks[1:]):
+        assert a.content[-50:-25] in b.content, (
+            "overlap should carry into the next piece"
+        )
+
+    print(f"chunker self-test OK ({len(long_chunks)} pieces from one long section)")
+
+
 if __name__ == "__main__":
-    main()
+    if "--selftest" in sys.argv:
+        _selftest()
+    else:
+        main()

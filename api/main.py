@@ -2,7 +2,7 @@
 FastAPI surface for the Orion agent.
 
 Endpoints:
-  GET  /api/health      → liveness probe
+  GET  /api/health      → liveness probe + per-dependency status (llm key, qdrant, db)
   GET  /api/support/*   → database-backed customers, products, and conversations
   POST /api/chat        → streamed NDJSON: token events + final trace event
   POST /api/transcribe  → multipart audio upload → {"text": "..."}
@@ -26,6 +26,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
+from sqlalchemy import text
 
 load_dotenv()
 
@@ -81,9 +82,55 @@ app.add_middleware(
 )
 
 
+def _check_llm_key() -> bool:
+    from orion_agent.agent.config import GROQ_API_KEY, OPENROUTER_API_KEY
+
+    return bool(OPENROUTER_API_KEY or GROQ_API_KEY)
+
+
+def _check_qdrant() -> bool:
+    try:
+        from qdrant_client import QdrantClient
+
+        client = QdrantClient(
+            url=os.environ["QDRANT_URL"],
+            api_key=os.environ.get("QDRANT_API_KEY") or None,
+            timeout=3,
+        )
+        client.get_collections()
+        return True
+    except Exception:
+        logger.warning("Health check: Qdrant unreachable", exc_info=True)
+        return False
+
+
+def _check_database() -> bool:
+    try:
+        from api.support_store import _get_engine
+
+        with _get_engine().connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        logger.warning("Health check: support database unreachable", exc_info=True)
+        return False
+
+
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok")
+    """Liveness probe plus a per-dependency snapshot for the support UI.
+
+    Each check is independent and caught separately (CLAUDE.md: one failure
+    must not crash a full run) — a dead Qdrant cluster still reports the
+    database and LLM key as fine, matching how the agent itself degrades.
+    """
+    dependencies = {
+        "llm_key": _check_llm_key(),
+        "qdrant": _check_qdrant(),
+        "database": _check_database(),
+    }
+    status = "ok" if all(dependencies.values()) else "degraded"
+    return HealthResponse(status=status, dependencies=dependencies)
 
 
 # ---------------------------------------------------------------------------
