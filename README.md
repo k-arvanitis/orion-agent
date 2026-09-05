@@ -375,8 +375,10 @@ LANGCHAIN_PROJECT=orion-agent
 
 ### Ingest policies into Qdrant
 ```bash
-make ingest    # starts the local Qdrant container (docker compose), chunks data/policies, embeds + upserts
+make ingest    # starts the local Qdrant container, chunks data/policies, embeds changed chunks only
 ```
+
+Incremental by default — re-running `make ingest` after editing one policy doc re-embeds only the changed chunks and deletes points for any document you removed. Pass `--rebuild` to `ingestion/ingest.py` directly to drop and recreate the collection instead.
 Qdrant runs as a local container by default (`make qdrant`, host port `QDRANT_PORT`, default 6337).
 Point `QDRANT_URL`/`QDRANT_API_KEY` at a Qdrant Cloud cluster for a hosted deployment; nothing else changes.
 
@@ -500,7 +502,7 @@ orion-agent/
 │       └── escalate_tool.py  # Structured handoff signal + optional Slack alert
 ├── ingestion/
 │   ├── chunker.py            # Markdown → heading-based chunks
-│   ├── ingest.py              # Embed + push to Qdrant (dense + sparse)
+│   ├── ingest.py              # Incremental embed + push to Qdrant (dense + sparse), --rebuild to drop and recreate
 │   ├── load_customer_data.py # CSV → Supabase with automatic type inference
 │   └── seed_support_data.py  # Create/seed the local support CRM database
 ├── eval/

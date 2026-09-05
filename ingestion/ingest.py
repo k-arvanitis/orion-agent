@@ -9,24 +9,35 @@ At query time, Qdrant runs both searches independently, then fuses the ranked
 results using Reciprocal Rank Fusion (RRF) — giving the best of semantic and
 keyword retrieval.
 
+Incremental by default: each chunk's point ID is a stable hash of its own
+`id` field (not a position), and each point's payload carries a content hash.
+A chunk whose content hasn't changed since the last run is skipped instead of
+re-embedded, and a chunk whose source document disappeared gets its point
+deleted — so re-running ingest after editing one document doesn't re-embed
+or re-download anything else. Pass --rebuild to drop and recreate instead.
+
 Usage:
     uv run python ingest.py
     uv run python ingest.py --chunks data/output/document-chunks.json \
 --collection orion-policies
     uv run python ingest.py --chunks-dir data/output/
+    uv run python ingest.py --rebuild
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
+    PointIdsList,
     PointStruct,
     SparseVectorParams,
     VectorParams,
@@ -47,6 +58,19 @@ from orion_agent.agent.embeddings import (  # noqa: E402
 DEFAULT_COLLECTION = QDRANT_COLLECTION
 DEFAULT_CHUNKS_FILE = "data/output/document-chunks.json"
 
+# Fixed, arbitrary namespace so uuid5(id) is stable across processes and runs.
+_POINT_ID_NAMESPACE = uuid.UUID("c9c5b1f6-3b8b-4e21-9a9b-6a9a6f6b6a63")
+
+
+def _point_id(chunk_id: str) -> str:
+    """Deterministic point ID from a chunk's own id — stable across ingest
+    runs regardless of chunk ordering or how many chunks exist."""
+    return str(uuid.uuid5(_POINT_ID_NAMESPACE, chunk_id))
+
+
+def _content_hash(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
 
 # ---------------------------------------------------------------------------
 # Qdrant
@@ -60,13 +84,7 @@ def get_client() -> QdrantClient:
     return get_qdrant_client()
 
 
-def recreate_collection(client: QdrantClient, collection: str) -> None:
-    """Drop and recreate with named dense + sparse vector configs."""
-    existing = {c.name for c in client.get_collections().collections}
-    if collection in existing:
-        client.delete_collection(collection)
-        logger.info("Dropped existing collection '%s'", collection)
-
+def _create_collection(client: QdrantClient, collection: str) -> None:
     client.create_collection(
         collection_name=collection,
         vectors_config={
@@ -77,16 +95,77 @@ def recreate_collection(client: QdrantClient, collection: str) -> None:
     logger.info("Created collection '%s' with dense + sparse vectors", collection)
 
 
-def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
-    total = len(chunks)
-    points: list[PointStruct] = []
+def recreate_collection(client: QdrantClient, collection: str) -> None:
+    """Drop and recreate with named dense + sparse vector configs."""
+    existing = {c.name for c in client.get_collections().collections}
+    if collection in existing:
+        client.delete_collection(collection)
+        logger.info("Dropped existing collection '%s'", collection)
+    _create_collection(client, collection)
 
-    for i, chunk in enumerate(chunks, start=1):
+
+def _ensure_collection(client: QdrantClient, collection: str) -> None:
+    existing = {c.name for c in client.get_collections().collections}
+    if collection not in existing:
+        _create_collection(client, collection)
+
+
+def _existing_hashes(client: QdrantClient, collection: str) -> dict[str, str]:
+    """Return {point_id: content_hash} for every point currently stored."""
+    hashes: dict[str, str] = {}
+    next_page = None
+    while True:
+        points, next_page = client.scroll(
+            collection_name=collection,
+            with_payload=["content_hash"],
+            with_vectors=False,
+            limit=256,
+            offset=next_page,
+        )
+        for point in points:
+            hashes[str(point.id)] = (point.payload or {}).get("content_hash", "")
+        if next_page is None:
+            break
+    return hashes
+
+
+def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
+    """Embed only chunks whose content changed since the last run, upsert
+    them, and delete points for chunks that no longer exist in *chunks*."""
+    _ensure_collection(client, collection)
+    existing_hashes = _existing_hashes(client, collection)
+
+    new_ids = {_point_id(c["id"]) for c in chunks}
+    stale_ids = [pid for pid in existing_hashes if pid not in new_ids]
+    if stale_ids:
+        client.delete(
+            collection_name=collection,
+            points_selector=PointIdsList(points=stale_ids),
+        )
+        logger.info(
+            "Deleted %d stale point(s) no longer in the chunk set", len(stale_ids)
+        )
+
+    to_embed = []
+    for chunk in chunks:
+        pid = _point_id(chunk["id"])
+        content_hash = _content_hash(chunk["content"])
+        if existing_hashes.get(pid) == content_hash:
+            continue
+        to_embed.append((pid, content_hash, chunk))
+
+    total = len(to_embed)
+    if total == 0:
+        print(f"  0 chunks changed — nothing to embed ({len(chunks)} unchanged)")
+        return
+
+    points: list[PointStruct] = []
+    for i, (pid, content_hash, chunk) in enumerate(to_embed, start=1):
         logger.debug("Embedding %d/%d: %s", i, total, chunk["heading"])
         print(f"  Embedding {i}/{total}: {chunk['heading']}", end="\r")
         points.append(
             PointStruct(
-                id=i,
+                id=pid,
                 vector={
                     "dense": dense_embed(chunk["content"]),
                     "sparse": sparse_embed(chunk["content"]),
@@ -97,13 +176,19 @@ def ingest(chunks: list[dict], client: QdrantClient, collection: str) -> None:
                     "section": chunk["section"],
                     "heading": chunk["heading"],
                     "content": chunk["content"],
+                    "content_hash": content_hash,
                 },
             )
         )
 
     print()
     client.upsert(collection_name=collection, points=points)
-    logger.info("Upserted %d points into '%s'", len(points), collection)
+    logger.info(
+        "Upserted %d changed point(s), skipped %d unchanged, into '%s'",
+        len(points),
+        len(chunks) - len(points),
+        collection,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +225,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_COLLECTION,
         help=f"Qdrant collection name (default: {DEFAULT_COLLECTION}).",
     )
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Drop and recreate the collection instead of an incremental upsert.",
+    )
     return parser
 
 
@@ -167,12 +257,13 @@ def main() -> None:
         print(f"Loaded {len(chunks)} chunks from '{args.chunks}'\n")
 
     client = get_client()
-    recreate_collection(client, args.collection)
+    if args.rebuild:
+        recreate_collection(client, args.collection)
 
-    print(f"\nEmbedding and ingesting into '{args.collection}' ...\n")
+    print(f"\nSyncing '{args.collection}' ...\n")
     ingest(chunks, client, args.collection)
 
-    print(f"\nDone. {len(chunks)} chunks ingested into '{args.collection}'.")
+    print(f"\nDone. {len(chunks)} chunks in the input set for '{args.collection}'.")
 
 
 if __name__ == "__main__":
