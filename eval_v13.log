@@ -1,0 +1,10 @@
+[0;93m2026-09-06 03:23:22.495243451 [W:onnxruntime:Default, device_discovery.cc:325 DiscoverDevicesForPlatform] GPU device discovery failed: device_discovery.cc:92 ReadFileContents Failed to open file: "/sys/class/drm/card0/device/vendor"[m
+Agent: openrouter (qwen/qwen3-235b-a22b-2507). Judge: gpt-4o-mini.
+
+Running 'orion-v13' — 154 examples → /home/karvanitis/orion-agent/eval/orion-v13.json
+
+[1/154] What is the status of order 416e49799e9260d93c8f636ce6661a55?
+[2/154] When was order 0ec373cccbb9d0a08243467c9d81a0c5 delivered?
+[1/154] done in 9.0s — 'Order 416e49799e9260d93c8f636ce6661a55 has been delivered. The delivery was comp'
+[3/154] How much did I pay for order 1e8c81805b92ff169971231458670460?
+  completed 1/154
