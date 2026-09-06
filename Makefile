@@ -61,7 +61,7 @@ demo:
 test:
 	uv run --frozen pytest tests/ -v
 
-EVAL_EXPERIMENT ?= orion-v12
+EVAL_EXPERIMENT ?= orion-v15
 
 eval:
 	@$(load_openrouter_key) nohup uv run --frozen python eval/run_eval.py --experiment $(EVAL_EXPERIMENT) > eval.log 2>&1 & echo "Eval PID $$! — tailing eval.log (Ctrl-C to detach, eval keeps running)"; tail -f eval.log
