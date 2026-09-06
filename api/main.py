@@ -19,10 +19,11 @@ import json
 import logging
 import os
 import time
+from collections import defaultdict, deque
 from functools import lru_cache
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
@@ -60,6 +61,43 @@ GUARD_CORRECTION_MARKER = "Rewrite using only data"
 
 app = FastAPI(title="Orion Agent API", version="0.1.0")
 
+# ---------------------------------------------------------------------------
+# API key auth — optional. Unset API_KEY means auth is off (local demo, CI,
+# and every existing test all run with no key configured). When set, it
+# guards write/side-effecting/paid endpoints only; read-only GETs stay open.
+# ---------------------------------------------------------------------------
+
+API_KEY = os.getenv("API_KEY", "")
+
+
+def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
+
+
+# ---------------------------------------------------------------------------
+# Per-IP rate limit on /api/chat — the one endpoint that spends LLM tokens on
+# an unauthenticated request path. Fixed-window counter, in-memory (single
+# instance only, matches the SqliteSaver checkpointer's own single-instance
+# assumption). RATE_LIMIT_PER_MINUTE=0 disables it.
+# ---------------------------------------------------------------------------
+
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
+_rate_limit_hits: dict[str, deque] = defaultdict(deque)
+
+
+def _enforce_rate_limit(request: Request) -> None:
+    if RATE_LIMIT_PER_MINUTE <= 0:
+        return
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    hits = _rate_limit_hits[client_ip]
+    while hits and now - hits[0] > 60:
+        hits.popleft()
+    if len(hits) >= RATE_LIMIT_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="Too many requests, slow down.")
+    hits.append(now)
+
 
 @lru_cache(maxsize=1)
 def _get_agent_graph():
@@ -67,6 +105,7 @@ def _get_agent_graph():
     from orion_agent.agent.graph import graph
 
     return graph
+
 
 # CORS — Next.js dev server on :3500; API on :8088. Override via env for prod.
 _origins = os.getenv(
@@ -166,7 +205,9 @@ def support_conversations() -> list[dict]:
     return list_conversations()
 
 
-@app.post("/api/support/conversations/messages")
+@app.post(
+    "/api/support/conversations/messages", dependencies=[Depends(require_api_key)]
+)
 def support_customer_message(req: CustomerMessageRequest) -> dict:
     try:
         return send_customer_message(req.message, req.conversation_id)
@@ -174,7 +215,10 @@ def support_customer_message(req: CustomerMessageRequest) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@app.post("/api/support/conversations/{conversation_id}/reply")
+@app.post(
+    "/api/support/conversations/{conversation_id}/reply",
+    dependencies=[Depends(require_api_key)],
+)
 def support_reply(conversation_id: str, req: SupportReplyRequest) -> dict:
     try:
         return send_support_reply(conversation_id, req.message)
@@ -182,7 +226,10 @@ def support_reply(conversation_id: str, req: SupportReplyRequest) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.post("/api/support/conversations/{conversation_id}/read")
+@app.post(
+    "/api/support/conversations/{conversation_id}/read",
+    dependencies=[Depends(require_api_key)],
+)
 def support_mark_read(conversation_id: str) -> dict:
     try:
         return mark_conversation_read(conversation_id)
@@ -190,7 +237,10 @@ def support_mark_read(conversation_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.post("/api/support/conversations/{conversation_id}/finish")
+@app.post(
+    "/api/support/conversations/{conversation_id}/finish",
+    dependencies=[Depends(require_api_key)],
+)
 def support_finish_conversation(conversation_id: str) -> dict:
     try:
         return resolve_conversation_by_support(conversation_id)
@@ -198,7 +248,10 @@ def support_finish_conversation(conversation_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.delete("/api/support/conversations/{conversation_id}")
+@app.delete(
+    "/api/support/conversations/{conversation_id}",
+    dependencies=[Depends(require_api_key)],
+)
 def support_delete_conversation(conversation_id: str) -> dict:
     try:
         delete_conversation(conversation_id)
@@ -207,7 +260,7 @@ def support_delete_conversation(conversation_id: str) -> dict:
     return {"deleted": conversation_id}
 
 
-@app.post("/api/support/demo/reset")
+@app.post("/api/support/demo/reset", dependencies=[Depends(require_api_key)])
 def support_demo_reset() -> list[dict]:
     return reset_demo_conversations()
 
@@ -286,9 +339,7 @@ def _stream_chat(message: str, session_id: str):
         "type": "trace",
         "tools": tools_called,
         "sql": (
-            state.values.get("last_sql")
-            if "query_database" in tools_called
-            else None
+            state.values.get("last_sql") if "query_database" in tools_called else None
         ),
         "chunks": (
             state.values.get("last_chunks")
@@ -301,8 +352,9 @@ def _stream_chat(message: str, session_id: str):
     yield _ndjson(trace)
 
 
-@app.post("/api/chat")
-def chat(req: ChatRequest) -> StreamingResponse:
+@app.post("/api/chat", dependencies=[Depends(require_api_key)])
+def chat(req: ChatRequest, request: Request) -> StreamingResponse:
+    _enforce_rate_limit(request)
     return StreamingResponse(
         _stream_chat(req.message, req.session_id),
         media_type="application/x-ndjson",
@@ -328,7 +380,11 @@ _ALLOWED_AUDIO_MIME = {
 _MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB — Groq Whisper hard cap
 
 
-@app.post("/api/transcribe", response_model=TranscribeResponse)
+@app.post(
+    "/api/transcribe",
+    response_model=TranscribeResponse,
+    dependencies=[Depends(require_api_key)],
+)
 async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
     # Browsers send "audio/webm;codecs=opus" — strip parameters before checking.
     base_mime = (file.content_type or "").split(";", 1)[0].strip().lower()
@@ -358,7 +414,7 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/tts")
+@app.post("/api/tts", dependencies=[Depends(require_api_key)])
 def tts(req: TtsRequest) -> Response:
     try:
         audio = voice.synthesize(req.text)

@@ -88,7 +88,7 @@ One FastAPI app, one agent. `/api/support/*` (what `/customer` and `/support` ac
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check — overall status plus per-dependency status (LLM key present, Qdrant reachable, database reachable) |
-| `/api/chat` | POST | Provider-backed LangGraph agent — NDJSON streamed response |
+| `/api/chat` | POST | Provider-backed LangGraph agent — NDJSON streamed response. Rate-limited per IP (`RATE_LIMIT_PER_MINUTE`, default 20/min) |
 | `/api/support/customers/lookup` | GET | Identity match for the demo path |
 | `/api/support/conversations` | GET | List conversations (support queue) |
 | `/api/support/conversations/messages` | POST | Post a customer message |
@@ -98,6 +98,8 @@ One FastAPI app, one agent. `/api/support/*` (what `/customer` and `/support` ac
 | `/api/tts` | POST | ElevenLabs text-to-speech (backend only — unused in the current UI) |
 
 Full interactive docs: `http://localhost:8088/docs`.
+
+Every POST/DELETE endpoint above is a write, paid, or side-effecting call and is guarded by an optional `X-API-Key` header check (`API_KEY` env var — unset means auth is off, which is the default for local dev and CI). Read-only GETs are never guarded.
 
 ---
 

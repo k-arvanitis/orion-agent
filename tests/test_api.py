@@ -91,9 +91,7 @@ def test_chat_streams_tokens_then_trace(client):
 
     fake_ai = AIMessage(
         content="",
-        tool_calls=[
-            {"name": "query_database", "args": {"q": "x"}, "id": "tc1"}
-        ],
+        tool_calls=[{"name": "query_database", "args": {"q": "x"}, "id": "tc1"}],
     )
 
     fake_graph = MagicMock()
@@ -220,8 +218,105 @@ def test_tts_returns_mpeg_bytes(client):
 
 
 def test_tts_502_on_eleven_failure(client):
-    with patch(
-        "api.main.voice.synthesize", side_effect=RuntimeError("eleven down")
-    ):
+    with patch("api.main.voice.synthesize", side_effect=RuntimeError("eleven down")):
         r = client.post("/api/tts", json={"text": "anything"})
     assert r.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# API key auth
+# ---------------------------------------------------------------------------
+
+
+def test_write_endpoint_open_when_no_api_key_configured(client, monkeypatch):
+    monkeypatch.setattr("api.main.API_KEY", "")
+    monkeypatch.setattr("api.main.reset_demo_conversations", lambda: [], raising=False)
+
+    r = client.post("/api/support/demo/reset")
+
+    assert r.status_code == 200
+
+
+def test_write_endpoint_rejects_missing_key_when_configured(client, monkeypatch):
+    monkeypatch.setattr("api.main.API_KEY", "secret123")
+
+    r = client.post("/api/support/demo/reset")
+
+    assert r.status_code == 401
+
+
+def test_write_endpoint_rejects_wrong_key_when_configured(client, monkeypatch):
+    monkeypatch.setattr("api.main.API_KEY", "secret123")
+
+    r = client.post("/api/support/demo/reset", headers={"X-API-Key": "wrong"})
+
+    assert r.status_code == 401
+
+
+def test_write_endpoint_accepts_correct_key_when_configured(client, monkeypatch):
+    monkeypatch.setattr("api.main.API_KEY", "secret123")
+    monkeypatch.setattr("api.main.reset_demo_conversations", lambda: [], raising=False)
+
+    r = client.post("/api/support/demo/reset", headers={"X-API-Key": "secret123"})
+
+    assert r.status_code == 200
+
+
+def test_read_endpoints_stay_open_even_when_api_key_configured(client, monkeypatch):
+    monkeypatch.setattr("api.main.API_KEY", "secret123")
+    monkeypatch.setattr("api.main.list_customers", lambda: [], raising=False)
+
+    r = client.get("/api/support/customers")
+
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# /api/chat rate limiting
+# ---------------------------------------------------------------------------
+
+
+def test_chat_rate_limit_blocks_after_the_configured_count(client, monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    monkeypatch.setattr("api.main.RATE_LIMIT_PER_MINUTE", 2)
+    monkeypatch.setattr(
+        "api.main._rate_limit_hits",
+        __import__("collections").defaultdict(__import__("collections").deque),
+    )
+
+    fake_graph = MagicMock()
+    fake_graph.stream.return_value = _fake_stream()
+    fake_graph.get_state.side_effect = [
+        _fake_state(messages=[]),
+        _fake_state(messages=[AIMessage(content="", tool_calls=[])]),
+    ] * 3
+
+    with patch("api.main._get_agent_graph", return_value=fake_graph):
+        payload = {"message": "hi", "session_id": "rl-1"}
+        r1 = client.post("/api/chat", json=payload)
+        r2 = client.post("/api/chat", json=payload)
+        r3 = client.post("/api/chat", json=payload)
+
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429
+
+
+def test_chat_rate_limit_disabled_when_zero(client, monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    monkeypatch.setattr("api.main.RATE_LIMIT_PER_MINUTE", 0)
+
+    fake_graph = MagicMock()
+    fake_graph.stream.return_value = _fake_stream()
+    fake_graph.get_state.side_effect = [
+        _fake_state(messages=[]),
+        _fake_state(messages=[AIMessage(content="", tool_calls=[])]),
+    ] * 5
+
+    with patch("api.main._get_agent_graph", return_value=fake_graph):
+        payload = {"message": "hi", "session_id": "rl-2"}
+        for _ in range(4):
+            r = client.post("/api/chat", json=payload)
+            assert r.status_code == 200
