@@ -1300,5 +1300,93 @@
     "expected_answer": "States order 0019c29108428acffd089c36103c9440 is recorded as delivered both times \u2014 does not change the answer based on the customer's unverified claim, and suggests escalation if the customer insists the item never arrived.",
     "expected_tool": "sql_only",
     "notes": "Real order 0019c29108428acffd089c36103c9440 (delivered on time). Tests that the agent trusts the database record over an unverified customer claim rather than hallucinating a different status."
+  },
+  {
+    "id": "rag_043",
+    "category": "rag_only",
+    "question": "How many points do I earn per real spent, and when are they credited?",
+    "expected_answer": "1 point per R$1 spent, credited once the order is delivered (not at purchase), so refunded/canceled orders don't generate points.",
+    "expected_tool": "rag_only",
+    "notes": "Requires loyalty_program.md, added when the demo corpus was expanded to 10 documents."
+  },
+  {
+    "id": "rag_044",
+    "category": "rag_only",
+    "question": "What are the benefits of reaching Gold tier in ShopNova Rewards?",
+    "expected_answer": "Free standard shipping on all orders, 48-hour early access to sale events, and priority support queue placement.",
+    "expected_tool": "rag_only",
+    "notes": "Requires loyalty_program.md."
+  },
+  {
+    "id": "rag_045",
+    "category": "rag_only",
+    "question": "How do I enable two-factor authentication on my account?",
+    "expected_answer": "Under Account Settings > Security; supports SMS codes and authenticator apps (TOTP).",
+    "expected_tool": "rag_only",
+    "notes": "Requires account_security.md."
+  },
+  {
+    "id": "rag_046",
+    "category": "rag_only",
+    "question": "Can I get my ShopNova account data exported?",
+    "expected_answer": "Yes, via Account Settings > Download My Data; export prepared within 5 business days, download link valid for 7 days.",
+    "expected_tool": "rag_only",
+    "notes": "Requires account_security.md."
+  },
+  {
+    "id": "rag_047",
+    "category": "rag_only",
+    "question": "If a third-party seller cancels my order, do I need to contact them for a refund?",
+    "expected_answer": "No \u2014 seller-initiated cancellations get a full automatic refund from ShopNova within 1 business day, no customer action needed.",
+    "expected_tool": "rag_only",
+    "notes": "Requires marketplace_seller_terms.md."
+  },
+  {
+    "id": "rag_048",
+    "category": "rag_only",
+    "question": "What happens if I report a listing as counterfeit?",
+    "expected_answer": "Investigated within 3 business days; confirmed counterfeit orders are fully refunded regardless of the standard return window, and the seller's account is suspended pending review.",
+    "expected_tool": "rag_only",
+    "notes": "Requires marketplace_seller_terms.md."
+  },
+  {
+    "id": "rag_049",
+    "category": "rag_only",
+    "question": "Do ShopNova gift cards expire?",
+    "expected_answer": "No, gift cards do not expire (unlike vouchers, which do).",
+    "expected_tool": "rag_only",
+    "notes": "Requires gift_cards_and_vouchers.md."
+  },
+  {
+    "id": "rag_050",
+    "category": "rag_only",
+    "question": "How long is a late-delivery compensation voucher valid for?",
+    "expected_answer": "90 days from issue.",
+    "expected_tool": "rag_only",
+    "notes": "Requires gift_cards_and_vouchers.md \u2014 distinguishes voucher expiry from gift card non-expiry."
+  },
+  {
+    "id": "rag_051",
+    "category": "rag_only",
+    "question": "Who pays customs duties on an international ShopNova order?",
+    "expected_answer": "The customer \u2014 duties/customs fees are charged by the destination country's customs authority or carrier at delivery, not included in the ShopNova order total.",
+    "expected_tool": "rag_only",
+    "notes": "Requires international_shipping.md."
+  },
+  {
+    "id": "rag_052",
+    "category": "rag_only",
+    "question": "Does the 10% late delivery voucher apply to international orders?",
+    "expected_answer": "No \u2014 it only applies to domestic Brazilian orders; international delivery estimates are a guide, not a guaranteed window.",
+    "expected_tool": "rag_only",
+    "notes": "Requires international_shipping.md \u2014 tests that the agent doesn't over-generalize the domestic late-delivery policy."
+  },
+  {
+    "id": "both_041",
+    "category": "both_tools",
+    "question": "I'm a Gold tier member and my order 00010242fe8c5a6d1ba2dd792cb16214 was delivered on time. Do I still get free shipping even though it wasn't late?",
+    "expected_answer": "Confirms the order was delivered on time, and explains that Gold tier gives free standard shipping on all orders regardless of whether an order is late \u2014 the two are unrelated (loyalty perk vs. late-delivery compensation).",
+    "expected_tool": "both",
+    "notes": "Requires combining order status (query_database) with loyalty_program.md \u2014 tests that the agent doesn't conflate tier shipping perks with late-delivery compensation."
   }
 ]
