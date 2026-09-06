@@ -53,6 +53,7 @@ from api.support_store import (  # noqa: E402
     send_support_reply,
 )
 from orion_agent.agent import voice  # noqa: E402
+from orion_agent.agent.prompts import PROMPT_VERSION as _PROMPT_VERSION  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +291,12 @@ def _stream_chat(message: str, session_id: str):
             }
         )
         return
-    config = {"configurable": {"thread_id": session_id}}
+    config = {
+        "configurable": {"thread_id": session_id},
+        "run_name": "orion-chat-stream",
+        "tags": [_PROMPT_VERSION],
+        "metadata": {"session_id": session_id, "prompt_version": _PROMPT_VERSION},
+    }
 
     prior_state = graph.get_state(config)
     prior_msg_count = len(prior_state.values.get("messages", []))

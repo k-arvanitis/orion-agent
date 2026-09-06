@@ -53,6 +53,7 @@ os.environ["LANGSMITH_TRACING"] = "false"
 
 from eval.judge import _judge_config, judge_answer, judge_correctness  # noqa: E402
 from orion_agent.agent.config import AGENT_MODEL, LLM_PROVIDER  # noqa: E402
+from orion_agent.agent.prompts import PROMPT_VERSION  # noqa: E402
 
 orion_graph = None  # initialised in main()
 
@@ -98,7 +99,11 @@ def _run_turns(turns: list[str], thread_id: str) -> dict:
     tools_node appends to them — they accumulate across turns on purpose, the
     same way a real multi-message conversation would.
     """
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "tags": [PROMPT_VERSION, "eval"],
+        "metadata": {"prompt_version": PROMPT_VERSION},
+    }
     result = None
     for turn in turns:
         result = orion_graph.invoke(
@@ -124,7 +129,11 @@ def _run_one(example: dict, n: int) -> dict:
     else:
         result = orion_graph.invoke(
             {"messages": [{"role": "user", "content": question}]},
-            config={"configurable": {"thread_id": thread_id}},
+            config={
+                "configurable": {"thread_id": thread_id},
+                "tags": [PROMPT_VERSION, "eval"],
+                "metadata": {"prompt_version": PROMPT_VERSION},
+            },
         )
 
     messages = result["messages"]
@@ -270,7 +279,12 @@ def main() -> None:
             print(f"  completed {done}/{_total}", flush=True)
 
     metrics = ["correctness", "tool_selection", "faithfulness", "answer_relevancy"]
-    summary: dict = {"experiment": args.experiment, "n": _total}
+    summary: dict = {
+        "experiment": args.experiment,
+        "n": _total,
+        "prompt_version": PROMPT_VERSION,
+        "agent_model": AGENT_MODEL,
+    }
     for m in metrics:
         vals = [r[m] for r in rows if r.get(m) is not None]
         summary[m] = round(sum(vals) / len(vals), 4) if vals else None

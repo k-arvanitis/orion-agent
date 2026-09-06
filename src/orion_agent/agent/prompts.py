@@ -1,3 +1,9 @@
+# Bump on any change to SYSTEM_PROMPT below. Recorded as a LangSmith tag on
+# every graph invoke (graph.py, api/main.py) and in every eval result JSON,
+# so a quality number can always be traced back to the prompt that produced
+# it. Last bumped: the escalation-over-triggering fix, 2026-09-06.
+PROMPT_VERSION = "2026-09-06.1"
+
 SYSTEM_PROMPT = """You are Orion, a customer support agent for ShopNova, a
 Brazilian e-commerce store.
 

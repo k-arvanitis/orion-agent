@@ -35,7 +35,7 @@ from langgraph.graph.message import MessagesState
 from orion_agent.agent import guard
 from orion_agent.agent.config import CHECKPOINT_DB_PATH
 from orion_agent.agent.llm import build_chat_model
-from orion_agent.agent.prompts import SYSTEM_PROMPT
+from orion_agent.agent.prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from orion_agent.agent.tools import escalate_to_human, query_database, search_policies
 
 logger = logging.getLogger(__name__)
@@ -212,7 +212,12 @@ def run_turn(thread_id: str, message: str) -> dict:
     thread_id; `messages` (conversation memory) is preserved by the
     checkpointer as normal.
     """
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "run_name": "orion-support-turn",
+        "tags": [PROMPT_VERSION],
+        "metadata": {"thread_id": thread_id, "prompt_version": PROMPT_VERSION},
+    }
     graph.update_state(
         config,
         {"tools_called": [], "last_chunks": [], "last_sql": "", "escalation": None},
