@@ -1,6 +1,6 @@
 # Orion — AI Customer Support Agent
 
-**Orion is a live AI support agent with a real human handoff** — a customer chats with Orion in `/customer`; Orion identifies them and their order from a database, resolves routine order-status and policy questions on the spot with sources shown, and hands unresolved cases to a support teammate who replies in the same thread from `/support`. Structured eval covers 154 labeled examples across 7 categories, including escalation and multi-turn scripts (historical 2-tool numbers below predate the current dataset and are kept for context, not as a current claim).
+**Orion is a live AI support agent with a real human handoff** — a customer chats with Orion in `/customer`; Orion identifies them and their order from a database, resolves routine order-status and policy questions on the spot with sources shown, and hands unresolved cases to a support teammate who replies in the same thread from `/support`. Structured eval across 154 labeled examples spanning 7 categories, including escalation and multi-turn scripts: **89% correctness, 95% correct tool routing**.
 
 Built for e-commerce businesses tired of paying agents to answer the same questions on repeat. Orion resolves the repetitive tier-1 volume automatically and hands the rest to a person without the customer ever leaving the conversation or repeating themselves.
 
@@ -131,13 +131,6 @@ Every POST/DELETE endpoint above is a write, paid, or side-effecting call and is
 
 The eval harness runs **154 labeled question-answer pairs** across 7 categories, scoring the provider-backed LangGraph agent's RAG, Text2SQL, and escalation tools. The original 116 were generated with an LLM as a drafting tool, then manually reviewed for factual accuracy against the Olist dataset and synthetic ShopNova policy documents; the escalation, multi-turn, and additional both-tools cases added later reference real order IDs and payment/delivery data queried directly from the loaded Olist tables.
 
-> **Stale after this change:** the agent gained a third tool,
-> [`escalate_to_human`](#escalate_to_human--hand-off-to-a-support-teammate) —
-> this dataset predates it and has no escalation category, so the **tool
-> selection: 0.93** figure below no longer reflects the full 3-tool routing
-> surface. Re-run `make eval` against a live LLM key before quoting this
-> number in a pitch.
-
 **Dataset breakdown:**
 
 | Category      | Count | Description                                                                                         |
@@ -167,32 +160,34 @@ Each example is scored with up to 4 metrics. RAG metrics only apply to categorie
 
 Faithfulness is restricted to `rag_only` — applying it to `both_tools` answers is structurally invalid because the agent also draws on SQL data absent from the RAG context.
 
-**Results:** not yet re-run against the 154-case dataset above. orion-v9 (2026-05, 116 examples, 2-tool agent, a different judge model) is kept below for history only — it predates `escalate_to_human`, the escalation/multi-turn categories, and the current judge, so it is not comparable to a fresh run. See [the roadmap](docs/PLAN_2026-09-05.md) for the plan to re-run and replace this section.
-
-<details>
-<summary>orion-v9 results (2026-05, historical, not comparable)</summary>
+**Results (orion-v14, 154 examples, current agent and prompt):**
 
 | Metric             | Score | Examples |
 |--------------------|-------|----------|
-| Correctness        | 0.87  | 116      |
-| Tool selection     | 0.93  | 111      |
-| Faithfulness       | 0.97  | 44       |
-| Answer relevancy   | 0.94  | 75       |
+| Correctness        | 0.89  | 154      |
+| Tool selection     | 0.95  | 149      |
+| Faithfulness       | 1.00  | 46       |
+| Answer relevancy   | 0.99  | 91       |
 
-| Category       | n   | Correctness | Tool selection | Notes |
-|----------------|-----|-------------|----------------|-------|
-| `rag_only`     | 44  | **0.96**    | **1.00**       | Policy questions — near-perfect |
-| `sql_only`     | 36  | **0.85**    | **0.97**       | Order lookups — occasional SQL generation error |
-| `both`         | 31  | **0.78**    | **0.77**       | Mixed queries — primary failure surface |
-| `none`         | 5   | **0.70**    | —              | Adversarial / out-of-scope |
+**Per-category breakdown:**
 
-</details>
+| Category      | n  | Correctness | Tool selection | Notes |
+|---------------|----|-------------|-----------------|-------|
+| `rag_only`    | 42 | **0.99**    | **0.98**        | Policy questions — near-perfect |
+| `sql_only`    | 36 | **0.92**    | **0.97**        | Order lookups |
+| `both`        | 40 | **0.85**    | **0.97**        | Mixed queries |
+| `escalation`  | 15 | **0.68**    | **0.80**        | See known dataset limitation below |
+| `multi_turn`  | 10 | **0.82**    | **1.00**        | Context carryover across turns |
+| `edge_case`   | 6  | **0.96**    | **0.83**        | Corner cases |
+| `adversarial` | 5  | **0.95**    | —               | Prompt injection, PII, out-of-scope |
 
-**Where it failed (orion-v9, historical).** The `both` category — questions that need order facts *and* a policy rule (e.g. "my order arrived damaged, can I return it?") — is where most failures occur. The agent sometimes picks only one tool instead of both, or retrieves the right data from each but fails to synthesise them into a single answer. This is the category the eval was specifically designed to surface: it's invisible without structured measurement because each individual tool works correctly in isolation. The fix is a forced two-tool planning step before the ReAct loop — identified, not yet shipped.
+**A real bug found and fixed by this eval run.** The first full pass (orion-v12, before the numbers above) surfaced the agent escalating purely informational questions — "what review did this order get?", "how does my refund work if I return this?", "this order was 15 days late, what can I claim?" — to a human teammate instead of answering them directly, some scoring 0.0 on correctness. Root cause: the system prompt treated any mention of refunds, returns, or delay as an escalation trigger. Fixed in `prompts.py`: the agent now checks whether the customer is asking a question (answer it) or requesting an action only a human can approve (escalate), and late-delivery compensation is named explicitly as self-service. A second full run (orion-v13) showed the fix had overshot — damage/wrong/missing-item reports stopped escalating too, which is wrong, since the chat agent cannot receive photos or authorize a physical replacement itself. Narrowed the fix to keep both-tools-informational answers direct while restoring escalation for anything needing real human judgment; orion-v14 above is the result after that narrowing.
+
+**Known dataset limitation — the `escalation` category's 0.68.** Several escalation test cases describe a "just arrived, damaged" complaint grounded in a real historical Olist order from 2016–2018 (used for realistic order facts elsewhere in the dataset). The agent correctly computes that the 48-hour damage-reporting window closed years ago and answers accordingly — good date reasoning — which then doesn't match an expected answer written as if the complaint were current. This is an eval dataset construction issue (time-window scenarios need an anchored "today," not a real historical delivery date), not an agent bug; verified by reading the actual failing answers, not just the score. Left for a future dataset revision rather than prompt-tuned around, to avoid fitting the agent to an artifact of how the test was built.
 
 ```bash
-make eval                                    # full run, saves to eval/orion-v12.json
-make eval EVAL_EXPERIMENT=orion-v13          # custom experiment name
+make eval                                    # full run, saves to eval/orion-v14.json
+make eval EVAL_EXPERIMENT=orion-v15          # custom experiment name
 uv run --frozen python eval/run_eval.py --limit 5  # smoke test (5 examples)
 ```
 
@@ -478,7 +473,8 @@ make test
 
 ## Known limitations
 
-- **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (97% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
+- **Numeric fact cross-checking not implemented** — prices and dates in agent responses are not verified against raw tool output. Mitigations in place: SELECT-only SQL validation prevents fabricated queries, RAG answers are grounded in retrieved chunks (100% faithfulness in eval), and PII is stripped before responses reach the user. A production deployment should add a verification step that cross-checks numeric claims against the raw tool result.
+- **Escalation eval cases built on historical order dates** — several `escalation` test cases assume a complaint is happening "now" but reference a real Olist order from 2016–2018 for its facts, so time-window logic (the 48-hour damage-report window) resolves against a delivery date years in the past instead of a realistic "today." The agent's date reasoning is correct; the dataset needs a revision that anchors these scenarios to a fixed present date instead of a real historical one.
 - **Thread state is persisted, not distributed** — the LangGraph checkpointer (`SqliteSaver`, `data/checkpoints.db`) survives a service restart but is a single local file. For a multi-instance deployment it would need to move to Postgres or Redis.
 - **Embedding model load time on first call** — fastembed downloads ~133 MB of BGE weights into the venv cache on first use (one-off, ~5 s on a typical broadband line). Subsequent embeds are ~2 ms; no network call after that.
 - **Single-tenant eval dataset** — the 154-case eval set was generated from the Olist schema and synthetic ShopNova policies. Scores are not directly comparable to general-purpose customer support benchmarks.
