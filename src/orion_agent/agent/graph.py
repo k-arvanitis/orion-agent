@@ -27,7 +27,7 @@ import logging
 from pathlib import Path
 from typing import NotRequired
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
@@ -39,6 +39,23 @@ from orion_agent.agent.prompts import SYSTEM_PROMPT
 from orion_agent.agent.tools import escalate_to_human, query_database, search_policies
 
 logger = logging.getLogger(__name__)
+
+# Long-running threads (SqliteSaver persists messages across restarts) would
+# otherwise grow the prompt without bound. Cut at a HumanMessage boundary so
+# an AIMessage-with-tool-calls is never separated from its ToolMessage reply,
+# which the chat API rejects.
+MAX_HISTORY_MESSAGES = 40
+
+
+def _truncate_history(messages: list) -> list:
+    if len(messages) <= MAX_HISTORY_MESSAGES:
+        return messages
+    window = messages[-MAX_HISTORY_MESSAGES:]
+    for i, m in enumerate(window):
+        if isinstance(m, HumanMessage):
+            return window[i:]
+    return window
+
 
 _llm = build_chat_model(max_tokens=2048)
 _llm_with_tools = _llm.bind_tools([search_policies, query_database, escalate_to_human])
@@ -70,7 +87,8 @@ class OrionState(MessagesState):
 
 
 def agent_node(state: OrionState) -> dict:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + state["messages"]
+    history = _truncate_history(state["messages"])
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
     logger.debug("Agent invoked with %d messages in context", len(messages))
     response = _llm_with_tools.invoke(messages)
     if response.tool_calls:
